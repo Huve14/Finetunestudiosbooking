@@ -1007,21 +1007,31 @@ const styles = {
     transition: 'all 0.2s',
     minHeight: '80px', // Touch-friendly
     display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center'
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '16px'
   },
   selectionCardActive: {
     borderColor: colors.red,
     backgroundColor: '#fef2f2'
   },
+  selectionInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    flex: 1
+  },
+  selectionName: {
+    fontSize: 'clamp(16px, 3vw, 18px)',
+    fontWeight: 'bold',
+    letterSpacing: '0.5px',
+    margin: 0,
+    lineHeight: 1.2
+  },
   selectionIcon: {
     fontSize: '40px',
     marginBottom: '12px'
-  },
-  selectionName: {
-    fontWeight: 'bold',
-    fontSize: '16px',
-    letterSpacing: '1px'
   },
   selectionMeta: {
     fontSize: '12px',
@@ -1031,8 +1041,10 @@ const styles = {
   selectionPrice: {
     color: colors.red,
     fontWeight: 'bold',
-    fontSize: '18px',
-    marginTop: '12px'
+    fontSize: 'clamp(20px, 5vw, 24px)',
+    marginTop: '0',
+    whiteSpace: 'nowrap',
+    flexShrink: 0
   },
   
   // Service List
@@ -2295,11 +2307,11 @@ const BookingFlow = ({ user, onNavigate }) => {
                       ...(bookingData.serviceId === service.id ? styles.selectionCardActive : {})
                     }}
                   >
-                    <div>
-                      <div style={{fontWeight: 'bold', fontSize: '18px', letterSpacing: '1px'}}>{service.name}</div>
-                      <div style={{fontSize: '14px', color: colors.gray500}}>{service.duration} minutes</div>
+                    <div style={styles.selectionInfo}>
+                      <div style={styles.selectionName}>{service.name}</div>
+                      <div style={styles.selectionMeta}>{service.duration} minutes</div>
                     </div>
-                    <div style={{fontSize: '24px', fontWeight: 'bold', color: colors.red}}>R{service.price}</div>
+                    <div style={styles.selectionPrice}>R{service.price}</div>
                   </button>
                 ))}
               </div>
