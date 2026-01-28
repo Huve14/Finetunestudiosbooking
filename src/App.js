@@ -425,6 +425,39 @@ async function createBooking(bookingData) {
   }
 }
 
+async function getUserBookings(userId) {
+  try {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('user_id', userId)
+      .order('date', { ascending: true })
+      .order('time', { ascending: true });
+    
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error fetching user bookings:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function cancelBooking(bookingId) {
+  try {
+    const { data, error } = await supabase
+      .from('bookings')
+      .update({ status: 'cancelled' })
+      .eq('id', bookingId)
+      .select();
+    
+    if (error) throw error;
+    return { success: true, data: data[0] };
+  } catch (error) {
+    console.error('Error cancelling booking:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 // ============================================================
 // STYLES
 // ============================================================
@@ -438,6 +471,10 @@ const colors = {
   gray200: '#e4e4e7',
   gray300: '#d4d4d8',
   gray400: '#a1a1aa',
+  bronze: '#cd7f32',
+  silver: '#c0c0c0',
+  gold: '#ffd700',
+  platinum: '#e5e4e2',
   gray500: '#71717a',
   gray600: '#52525b',
   gray800: '#27272a',
@@ -1279,6 +1316,9 @@ const Navigation = ({ currentPage, isAuthenticated, userRole, onNavigate, onLogo
           {userRole === 'admin' && (
             <button style={{...styles.navLink, ...(isMobile && styles.navLinkMobile)}} onClick={() => { onNavigate('admin-dashboard'); isMobile && setMobileMenuOpen(false); }}>Dashboard</button>
           )}
+          {userRole !== 'admin' && (
+            <button style={{...styles.navLink, ...(isMobile && styles.navLinkMobile)}} onClick={() => { onNavigate('my-bookings'); isMobile && setMobileMenuOpen(false); }}>My Bookings</button>
+          )}
           <button style={{...styles.btnOutline, color: colors.white, borderColor: colors.gray600, ...(isMobile && {width: '100%', padding: '14px'})}} onClick={() => { onLogout(); isMobile && setMobileMenuOpen(false); }}>Logout</button>
         </>
       ) : (
@@ -1783,6 +1823,248 @@ const AdminDashboard = ({ user, onNavigate, onLogout }) => {
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+};
+
+// My Bookings Dashboard
+const MyBookings = ({ user, onNavigate }) => {
+  const [activeTab, setActiveTab] = useState('upcoming');
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Loyalty tiers
+  const loyaltyTiers = [
+    { name: 'Bronze', icon: '🥉', min: 1, discount: 5, color: colors.bronze },
+    { name: 'Silver', icon: '🥈', min: 5, discount: 10, color: colors.silver },
+    { name: 'Gold', icon: '🥇', min: 10, discount: 15, color: colors.gold },
+    { name: 'Platinum', icon: '👑', min: 20, discount: 20, color: colors.platinum }
+  ];
+
+  const calculateLoyaltyTier = (bookingCount) => {
+    for (let i = loyaltyTiers.length - 1; i >= 0; i--) {
+      if (bookingCount >= loyaltyTiers[i].min) {
+        return { 
+          ...loyaltyTiers[i], 
+          index: i,
+          nextTier: i < loyaltyTiers.length - 1 ? loyaltyTiers[i + 1] : null
+        };
+      }
+    }
+    return { name: 'New Member', icon: '⭐', min: 0, discount: 0, color: colors.gray400, index: -1, nextTier: loyaltyTiers[0] };
+  };
+
+  const loadBookings = async () => {
+    if (!user) return;
+    setLoading(true);
+    const result = await getUserBookings(user.id);
+    if (result.success) {
+      setBookings(result.data);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadBookings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const handleCancelBooking = async (bookingId) => {
+    if (!window.confirm('Are you sure you want to cancel this booking?')) return;
+    
+    const result = await cancelBooking(bookingId);
+    if (result.success) {
+      alert('Booking cancelled successfully');
+      loadBookings();
+    } else {
+      alert('Failed to cancel booking: ' + result.error);
+    }
+  };
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const completedBookings = bookings.filter(b => b.status === 'confirmed' && new Date(b.date) < today);
+  const upcomingBookings = bookings.filter(b => b.status === 'confirmed' && new Date(b.date) >= today);
+  const cancelledBookings = bookings.filter(b => b.status === 'cancelled');
+
+  const totalCompletedCount = completedBookings.length;
+  const currentTier = calculateLoyaltyTier(totalCompletedCount);
+  const progress = currentTier.nextTier 
+    ? ((totalCompletedCount - currentTier.min) / (currentTier.nextTier.min - currentTier.min)) * 100 
+    : 100;
+
+  const displayBookings = activeTab === 'upcoming' ? upcomingBookings : [...completedBookings, ...cancelledBookings].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  const BookingCard = ({ booking }) => {
+    const bookingDate = new Date(booking.date);
+    const isPast = bookingDate < today;
+    const studio = studios.find(s => s.id === booking.studio_id);
+    const service = services.find(s => s.id === booking.service_id);
+
+    return (
+      <div style={{
+        backgroundColor: colors.white,
+        borderRadius: '12px',
+        padding: 'clamp(16px, 4vw, 24px)',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+        borderLeft: `4px solid ${booking.status === 'cancelled' ? colors.gray400 : isPast ? colors.gray600 : colors.red}`,
+        marginBottom: '16px'
+      }}>
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px'}}>
+          <div style={{flex: 1, minWidth: '200px'}}>
+            <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px'}}>
+              <span style={{fontSize: '24px'}}>{studio?.icon || '🎵'}</span>
+              <h3 style={{fontSize: 'clamp(16px, 4vw, 18px)', fontWeight: 'bold', margin: 0}}>{studio?.name || 'Studio'}</h3>
+            </div>
+            <p style={{color: colors.gray600, fontSize: '14px', margin: '4px 0'}}>{service?.name || 'Service'}</p>
+            <div style={{display: 'flex', gap: '16px', flexWrap: 'wrap', marginTop: '12px', fontSize: '14px'}}>
+              <div><strong>📅 Date:</strong> {new Date(booking.date).toLocaleDateString('en-ZA', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}</div>
+              <div><strong>🕐 Time:</strong> {booking.time}</div>
+              <div><strong>⏱️ Duration:</strong> {service?.duration || 60} min</div>
+            </div>
+            <div style={{marginTop: '8px', fontSize: '12px', color: colors.gray500}}>
+              <strong>Booking #:</strong> {booking.booking_number}
+            </div>
+            {booking.status === 'cancelled' && (
+              <div style={{marginTop: '8px', padding: '8px 12px', backgroundColor: '#fee2e2', color: colors.red, borderRadius: '6px', fontSize: '12px', fontWeight: 'bold'}}>
+                ❌ CANCELLED
+              </div>
+            )}
+          </div>
+          <div style={{display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px'}}>
+            <div style={{fontSize: 'clamp(20px, 5vw, 24px)', fontWeight: 'bold', color: colors.red}}>R{booking.total_price}</div>
+            {!isPast && booking.status === 'confirmed' && (
+              <button 
+                style={{...styles.btnOutline, padding: '8px 16px', fontSize: '12px', color: colors.red, borderColor: colors.red, minHeight: 'auto'}}
+                onClick={() => handleCancelBooking(booking.id)}
+              >
+                Cancel Booking
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{minHeight: '100vh', backgroundColor: colors.gray50}}>
+      <div style={{maxWidth: '1000px', margin: '0 auto', padding: 'clamp(20px, 5vw, 40px) clamp(16px, 4vw, 24px)'}}>
+        {/* Header */}
+        <button style={{...styles.navLink, color: colors.black, marginBottom: '20px'}} onClick={() => onNavigate('home')}>
+          ← Back to Home
+        </button>
+
+        <h1 style={{fontSize: 'clamp(28px, 6vw, 36px)', fontWeight: 'bold', marginBottom: '8px'}}>MY BOOKINGS</h1>
+        <p style={{color: colors.gray600, marginBottom: '32px', fontSize: 'clamp(14px, 3vw, 16px)'}}>Manage your studio bookings and track your loyalty status</p>
+
+        {/* Loyalty Program Card */}
+        <div style={{
+          backgroundColor: colors.white,
+          borderRadius: '16px',
+          padding: 'clamp(20px, 5vw, 32px)',
+          marginBottom: '32px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+          background: `linear-gradient(135deg, ${currentTier.color}20 0%, ${colors.white} 50%)`
+        }}>
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px'}}>
+            <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+              <span style={{fontSize: 'clamp(40px, 8vw, 56px)'}}>{currentTier.icon}</span>
+              <div>
+                <h2 style={{fontSize: 'clamp(20px, 5vw, 28px)', fontWeight: 'bold', margin: 0, color: currentTier.color}}>{currentTier.name} Member</h2>
+                <p style={{color: colors.gray600, margin: '4px 0', fontSize: 'clamp(14px, 3vw, 16px)'}}>{currentTier.discount}% discount on all bookings</p>
+              </div>
+            </div>
+            <div style={{textAlign: 'right'}}>
+              <div style={{fontSize: 'clamp(32px, 7vw, 48px)', fontWeight: 'bold', color: currentTier.color}}>{totalCompletedCount}</div>
+              <div style={{fontSize: '14px', color: colors.gray500}}>completed sessions</div>
+            </div>
+          </div>
+
+          {currentTier.nextTier && (
+            <div>
+              <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px'}}>
+                <span style={{fontWeight: '600'}}>Progress to {currentTier.nextTier.icon} {currentTier.nextTier.name}</span>
+                <span style={{color: colors.gray600}}>{totalCompletedCount}/{currentTier.nextTier.min} bookings</span>
+              </div>
+              <div style={{
+                width: '100%',
+                height: '12px',
+                backgroundColor: colors.gray200,
+                borderRadius: '6px',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  width: `${Math.min(progress, 100)}%`,
+                  height: '100%',
+                  backgroundColor: currentTier.nextTier.color,
+                  transition: 'width 0.3s ease',
+                  borderRadius: '6px'
+                }} />
+              </div>
+              <p style={{fontSize: '12px', color: colors.gray500, marginTop: '8px'}}>
+                {currentTier.nextTier.min - totalCompletedCount} more booking{currentTier.nextTier.min - totalCompletedCount !== 1 ? 's' : ''} to unlock {currentTier.nextTier.discount}% discount!
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Tabs */}
+        <div style={{display: 'flex', gap: '16px', marginBottom: '24px', borderBottom: `2px solid ${colors.gray200}`, overflowX: 'auto'}}>
+          <button
+            style={{
+              padding: '12px 24px',
+              border: 'none',
+              background: 'none',
+              fontSize: 'clamp(14px, 3vw, 16px)',
+              fontWeight: '600',
+              cursor: 'pointer',
+              borderBottom: activeTab === 'upcoming' ? `3px solid ${colors.red}` : 'none',
+              color: activeTab === 'upcoming' ? colors.red : colors.gray600,
+              whiteSpace: 'nowrap'
+            }}
+            onClick={() => setActiveTab('upcoming')}
+          >
+            Upcoming ({upcomingBookings.length})
+          </button>
+          <button
+            style={{
+              padding: '12px 24px',
+              border: 'none',
+              background: 'none',
+              fontSize: 'clamp(14px, 3vw, 16px)',
+              fontWeight: '600',
+              cursor: 'pointer',
+              borderBottom: activeTab === 'past' ? `3px solid ${colors.red}` : 'none',
+              color: activeTab === 'past' ? colors.red : colors.gray600,
+              whiteSpace: 'nowrap'
+            }}
+            onClick={() => setActiveTab('past')}
+          >
+            Past ({completedBookings.length + cancelledBookings.length})
+          </button>
+        </div>
+
+        {/* Bookings List */}
+        {loading ? (
+          <div style={{textAlign: 'center', padding: '64px 20px', color: colors.gray500}}>
+            <div style={{fontSize: '48px', marginBottom: '16px'}}>⏳</div>
+            <p>Loading your bookings...</p>
+          </div>
+        ) : displayBookings.length === 0 ? (
+          <div style={{textAlign: 'center', padding: '64px 20px'}}>
+            <div style={{fontSize: '64px', marginBottom: '16px'}}>📭</div>
+            <h3 style={{fontSize: '20px', marginBottom: '8px'}}>No {activeTab} bookings</h3>
+            <p style={{color: colors.gray600, marginBottom: '24px'}}>Ready to book your next studio session?</p>
+            <button style={styles.btnPrimary} onClick={() => onNavigate('book')}>
+              Book Now
+            </button>
+          </div>
+        ) : (
+          displayBookings.map(booking => <BookingCard key={booking.id} booking={booking} />)
+        )}
       </div>
     </div>
   );
@@ -2406,6 +2688,7 @@ export default function FinetuneStudios() {
       {currentPage === 'login-user' && <LoginPage isAdmin={false} onLogin={handleLogin} onNavigate={setCurrentPage} />}
       {currentPage === 'signup' && <SignupPage onSignup={handleSignup} onNavigate={setCurrentPage} />}
       {currentPage === 'admin-dashboard' && <AdminDashboard user={currentUser} onNavigate={setCurrentPage} onLogout={handleLogout} />}
+      {currentPage === 'my-bookings' && <MyBookings user={currentUser} onNavigate={setCurrentPage} />}
       {currentPage === 'book' && <BookingFlow user={currentUser} onNavigate={setCurrentPage} />}
 
       {showNav && <Footer />}
