@@ -502,14 +502,41 @@ const styles = {
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: '1px',
-    padding: '8px 0'
+    padding: '8px 0',
+    minHeight: '44px' // Touch-friendly minimum
+  },
+  navLinkMobile: {
+    width: '100%',
+    textAlign: 'left',
+    padding: '16px',
+    fontSize: '16px',
+    borderBottom: `1px solid ${colors.gray800}`
+  },
+  hamburger: {
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-around',
+    width: '32px',
+    height: '32px',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: '0',
+    zIndex: 1001
+  },
+  hamburgerLine: {
+    width: '32px',
+    height: '3px',
+    backgroundColor: colors.white,
+    borderRadius: '10px',
+    transition: 'all 0.3s ease'
   },
   
   // Buttons
   btnPrimary: {
     backgroundColor: colors.red,
     color: colors.white,
-    padding: '12px 24px',
+    padding: '14px 28px', // Increased for touch
     borderRadius: '8px',
     fontWeight: 'bold',
     textTransform: 'uppercase',
@@ -517,91 +544,103 @@ const styles = {
     border: 'none',
     cursor: 'pointer',
     fontSize: '14px',
-    boxShadow: '0 4px 14px rgba(220, 38, 38, 0.4)'
+    boxShadow: '0 4px 14px rgba(220, 38, 38, 0.4)',
+    minHeight: '48px', // Touch-friendly minimum
+    transition: 'transform 0.2s, box-shadow 0.2s'
   },
   btnSecondary: {
     backgroundColor: colors.black,
     color: colors.white,
-    padding: '12px 24px',
+    padding: '14px 28px',
     borderRadius: '8px',
     fontWeight: 'bold',
     textTransform: 'uppercase',
     letterSpacing: '1px',
     border: 'none',
     cursor: 'pointer',
-    fontSize: '14px'
+    fontSize: '14px',
+    minHeight: '48px',
+    transition: 'transform 0.2s'
   },
   btnOutline: {
     backgroundColor: 'transparent',
     color: colors.gray600,
-    padding: '12px 24px',
+    padding: '14px 28px',
     borderRadius: '8px',
     fontWeight: 'bold',
     textTransform: 'uppercase',
     letterSpacing: '1px',
     border: `2px solid ${colors.gray300}`,
     cursor: 'pointer',
-    fontSize: '14px'
+    fontSize: '14px',
+    minHeight: '48px',
+    transition: 'transform 0.2s'
   },
   
   // Hero Section
   hero: {
     background: 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #2a0a0a 100%)',
     color: colors.white,
-    padding: '100px 24px',
+    padding: '80px 20px', // Reduced for mobile
     textAlign: 'center'
   },
   heroTitle: {
-    fontSize: '56px',
+    fontSize: 'clamp(32px, 8vw, 56px)', // Responsive font size
     fontWeight: 'bold',
     marginBottom: '24px',
     letterSpacing: '3px',
-    lineHeight: 1.2
+    lineHeight: 1.2,
+    padding: '0 16px'
   },
   heroSubtitle: {
-    fontSize: '20px',
+    fontSize: 'clamp(16px, 4vw, 20px)', // Responsive font size
     color: colors.gray400,
     marginBottom: '40px',
     maxWidth: '600px',
-    margin: '0 auto 40px'
+    margin: '0 auto 40px',
+    padding: '0 16px',
+    lineHeight: 1.6
   },
   
   // Sections
   section: {
-    padding: '80px 24px',
+    padding: 'clamp(40px, 10vw, 80px) clamp(16px, 5vw, 24px)', // Responsive padding
     maxWidth: '1200px',
     margin: '0 auto'
   },
   sectionGray: {
     backgroundColor: colors.gray50,
-    padding: '80px 24px'
+    padding: 'clamp(40px, 10vw, 80px) clamp(16px, 5vw, 24px)'
   },
   sectionTitle: {
-    fontSize: '40px',
+    fontSize: 'clamp(28px, 6vw, 40px)', // Responsive font size
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: '16px',
-    letterSpacing: '2px'
+    letterSpacing: '2px',
+    padding: '0 16px'
   },
   sectionSubtitle: {
     textAlign: 'center',
     color: colors.gray600,
     marginBottom: '48px',
-    fontSize: '16px'
+    fontSize: 'clamp(14px, 3vw, 16px)',
+    padding: '0 16px',
+    lineHeight: 1.6
   },
   
   // Cards Grid
   grid2: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-    gap: '32px',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', // Mobile-friendly
+    gap: 'clamp(16px, 4vw, 32px)',
     maxWidth: '1200px',
     margin: '0 auto'
   },
   grid4: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-    gap: '24px',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))',
+    gap: 'clamp(16px, 3vw, 24px)',
     maxWidth: '1200px',
     margin: '0 auto'
   },
@@ -758,22 +797,27 @@ const styles = {
   },
   input: {
     width: '100%',
-    padding: '14px 16px',
+    padding: '16px', // Increased for touch
     border: `2px solid ${colors.gray300}`,
     borderRadius: '8px',
-    fontSize: '16px',
+    fontSize: '16px', // Prevents zoom on iOS
     boxSizing: 'border-box',
-    transition: 'border-color 0.2s'
+    transition: 'border-color 0.2s',
+    minHeight: '48px', // Touch-friendly minimum
+    WebkitAppearance: 'none', // Remove iOS styling
+    appearance: 'none'
   },
   textarea: {
     width: '100%',
-    padding: '14px 16px',
+    padding: '16px',
     border: `2px solid ${colors.gray300}`,
     borderRadius: '8px',
     fontSize: '16px',
     boxSizing: 'border-box',
     resize: 'vertical',
-    minHeight: '120px'
+    minHeight: '120px',
+    WebkitAppearance: 'none',
+    appearance: 'none'
   },
   
   // Login
@@ -840,19 +884,19 @@ const styles = {
   // Booking Flow
   bookingContainer: {
     maxWidth: '800px',
-    margin: '40px auto',
-    padding: '0 24px'
+    margin: 'clamp(20px, 5vw, 40px) auto',
+    padding: '0 clamp(16px, 4vw, 24px)'
   },
   bookingCard: {
     backgroundColor: colors.white,
     borderRadius: '16px',
-    padding: '40px',
+    padding: 'clamp(24px, 5vw, 40px)',
     boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
     borderTop: `4px solid ${colors.red}`,
     marginBottom: '24px'
   },
   bookingTitle: {
-    fontSize: '24px',
+    fontSize: 'clamp(20px, 4vw, 24px)',
     fontWeight: 'bold',
     marginBottom: '24px',
     letterSpacing: '2px'
@@ -862,8 +906,10 @@ const styles = {
   progressContainer: {
     display: 'flex',
     justifyContent: 'space-between',
-    marginBottom: '48px',
-    position: 'relative'
+    marginBottom: 'clamp(24px, 6vw, 48px)',
+    position: 'relative',
+    overflowX: 'auto',
+    padding: '0 8px'
   },
   progressLine: {
     position: 'absolute',
@@ -878,17 +924,18 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    zIndex: 1
+    zIndex: 1,
+    minWidth: '60px'
   },
   progressCircle: {
-    width: '40px',
-    height: '40px',
+    width: 'clamp(36px, 8vw, 40px)',
+    height: 'clamp(36px, 8vw, 40px)',
     borderRadius: '50%',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     fontWeight: 'bold',
-    fontSize: '16px',
+    fontSize: 'clamp(14px, 3vw, 16px)',
     marginBottom: '8px'
   },
   progressCircleActive: {
@@ -900,25 +947,31 @@ const styles = {
     color: colors.gray600
   },
   progressLabel: {
-    fontSize: '12px',
+    fontSize: 'clamp(10px, 2vw, 12px)',
     fontWeight: '600',
-    textTransform: 'uppercase'
+    textTransform: 'uppercase',
+    textAlign: 'center',
+    whiteSpace: 'nowrap'
   },
   
   // Selection Cards
   selectionGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    gap: '16px'
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))',
+    gap: 'clamp(12px, 3vw, 16px)'
   },
   selectionCard: {
-    padding: '20px',
+    padding: 'clamp(16px, 4vw, 20px)',
     border: `2px solid ${colors.gray200}`,
     borderRadius: '12px',
     cursor: 'pointer',
     textAlign: 'left',
     backgroundColor: colors.white,
-    transition: 'all 0.2s'
+    transition: 'all 0.2s',
+    minHeight: '80px', // Touch-friendly
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center'
   },
   selectionCardActive: {
     borderColor: colors.red,
@@ -966,18 +1019,23 @@ const styles = {
   // Time Slots
   timeGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(5, 1fr)',
-    gap: '12px'
+    gridTemplateColumns: 'repeat(auto-fill, minmax(min(100px, 100%), 1fr))', // Responsive grid
+    gap: 'clamp(8px, 2vw, 12px)'
   },
   timeSlot: {
-    padding: '12px',
+    padding: 'clamp(12px, 3vw, 16px)',
     border: `2px solid ${colors.gray200}`,
     borderRadius: '8px',
     cursor: 'pointer',
     textAlign: 'center',
     fontWeight: 'bold',
     backgroundColor: colors.white,
-    transition: 'all 0.2s'
+    transition: 'all 0.2s',
+    minHeight: '56px', // Touch-friendly
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 'clamp(14px, 3vw, 16px)'
   },
   timeSlotActive: {
     borderColor: colors.red,
@@ -1175,36 +1233,69 @@ const styles = {
 // ============================================================
 
 // Navigation
-const Navigation = ({ currentPage, isAuthenticated, userRole, onNavigate, onLogout }) => (
+const Navigation = ({ currentPage, isAuthenticated, userRole, onNavigate, onLogout, isMobile, mobileMenuOpen, setMobileMenuOpen }) => (
   <nav style={styles.nav}>
     <button style={styles.navLogo} onClick={() => onNavigate('home')}>
       <div style={styles.navLogoIcon}>🎵</div>
-      <span style={styles.navLogoText}>FINETUNE STUDIOS</span>
+      <span style={{...styles.navLogoText, ...(isMobile && {fontSize: '18px'})}}>FINETUNE STUDIOS</span>
     </button>
-    <div style={styles.navLinks}>
-      <button style={styles.navLink} onClick={() => onNavigate('home')}>Home</button>
-      <button style={styles.navLink} onClick={() => onNavigate('studios')}>Studios</button>
+    
+    {/* Hamburger Menu Button */}
+    {isMobile && (
+      <button 
+        style={styles.hamburger} 
+        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        aria-label="Toggle menu"
+      >
+        <div style={{...styles.hamburgerLine, ...(mobileMenuOpen && {transform: 'rotate(45deg) translateY(8px)'})}} />
+        <div style={{...styles.hamburgerLine, ...(mobileMenuOpen && {opacity: 0})}} />
+        <div style={{...styles.hamburgerLine, ...(mobileMenuOpen && {transform: 'rotate(-45deg) translateY(-8px)'})}} />
+      </button>
+    )}
+    
+    {/* Navigation Links */}
+    <div style={{
+      ...styles.navLinks,
+      ...(isMobile && {
+        display: mobileMenuOpen ? 'flex' : 'none',
+        position: 'fixed',
+        top: '80px',
+        left: 0,
+        right: 0,
+        backgroundColor: colors.black,
+        flexDirection: 'column',
+        padding: '24px',
+        gap: '16px',
+        borderTop: `1px solid ${colors.gray800}`,
+        maxHeight: 'calc(100vh - 80px)',
+        overflowY: 'auto',
+        zIndex: 999
+      })
+    }}>
+      <button style={{...styles.navLink, ...(isMobile && styles.navLinkMobile)}} onClick={() => { onNavigate('home'); isMobile && setMobileMenuOpen(false); }}>Home</button>
+      <button style={{...styles.navLink, ...(isMobile && styles.navLinkMobile)}} onClick={() => { onNavigate('studios'); isMobile && setMobileMenuOpen(false); }}>Studios</button>
       {isAuthenticated ? (
         <>
           {userRole === 'admin' && (
-            <button style={styles.navLink} onClick={() => onNavigate('admin-dashboard')}>Dashboard</button>
+            <button style={{...styles.navLink, ...(isMobile && styles.navLinkMobile)}} onClick={() => { onNavigate('admin-dashboard'); isMobile && setMobileMenuOpen(false); }}>Dashboard</button>
           )}
-          <button style={{...styles.btnOutline, color: colors.white, borderColor: colors.gray600}} onClick={onLogout}>Logout</button>
+          <button style={{...styles.btnOutline, color: colors.white, borderColor: colors.gray600, ...(isMobile && {width: '100%', padding: '14px'})}} onClick={() => { onLogout(); isMobile && setMobileMenuOpen(false); }}>Logout</button>
         </>
       ) : (
         <>
-          <button style={styles.navLink} onClick={() => onNavigate('login-user')}>Login</button>
-          <button style={{...styles.navLink, color: colors.red}} onClick={() => onNavigate('signup')}>Sign Up</button>
-          <button style={{...styles.navLink, color: colors.red}} onClick={() => onNavigate('login-admin')}>Admin</button>
+          <button style={{...styles.navLink, ...(isMobile && styles.navLinkMobile)}} onClick={() => { onNavigate('login-user'); isMobile && setMobileMenuOpen(false); }}>Login</button>
+          <button style={{...styles.navLink, color: colors.red, ...(isMobile && styles.navLinkMobile)}} onClick={() => { onNavigate('signup'); isMobile && setMobileMenuOpen(false); }}>Sign Up</button>
+          <button style={{...styles.navLink, color: colors.red, ...(isMobile && styles.navLinkMobile)}} onClick={() => { onNavigate('login-admin'); isMobile && setMobileMenuOpen(false); }}>Admin</button>
         </>
       )}
-      <button style={styles.btnPrimary} onClick={() => {
+      <button style={{...styles.btnPrimary, ...(isMobile && {width: '100%', padding: '16px', fontSize: '16px'})}} onClick={() => {
         if (!isAuthenticated) {
           alert('Please log in to book a studio session');
           onNavigate('login-user');
         } else {
           onNavigate('book');
         }
+        isMobile && setMobileMenuOpen(false);
       }}>Book Now</button>
     </div>
   </nav>
@@ -1264,7 +1355,7 @@ const HomePage = ({ onNavigate }) => {
         <p style={styles.heroSubtitle}>
           World-class facilities for music production, podcasting, and audio post-production in Johannesburg
         </p>
-        <button style={{...styles.btnPrimary, fontSize: '18px', padding: '16px 40px'}} onClick={() => onNavigate('book')}>
+        <button style={{...styles.btnPrimary, fontSize: 'clamp(14px, 3vw, 18px)', padding: 'clamp(14px, 3vw, 16px) clamp(24px, 5vw, 40px)'}} onClick={() => onNavigate('book')}>
           Book Your Session →
         </button>
       </section>
@@ -2256,6 +2347,20 @@ export default function FinetuneStudios() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  // Handle window resize for responsive design
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+      if (window.innerWidth > 768) {
+        setMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleLogin = (user, role) => {
     setIsAuthenticated(true);
@@ -2289,6 +2394,9 @@ export default function FinetuneStudios() {
           userRole={userRole}
           onNavigate={setCurrentPage}
           onLogout={handleLogout}
+          isMobile={isMobile}
+          mobileMenuOpen={mobileMenuOpen}
+          setMobileMenuOpen={setMobileMenuOpen}
         />
       )}
 
