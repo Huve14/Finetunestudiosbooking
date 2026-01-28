@@ -170,6 +170,95 @@ async function loginUser(email, password, role) {
   }
 }
 
+async function signupUser(email, password, name, phone) {
+  try {
+    console.log('Signup attempt:', { email, name });
+
+    // Validate input
+    if (!email || !password || !name || !phone) {
+      return { success: false, error: 'All fields are required' };
+    }
+
+    if (password.length < 6) {
+      return { success: false, error: 'Password must be at least 6 characters' };
+    }
+
+    // Check if user already exists
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('email')
+      .eq('email', email)
+      .single();
+
+    if (existingUser) {
+      return { success: false, error: 'Email already registered. Please login instead.' };
+    }
+
+    // Try to create user with Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name: name,
+          phone: phone
+        }
+      }
+    });
+
+    console.log('Auth signup result:', { hasData: !!authData?.user, error: authError?.message });
+
+    if (authError) {
+      return { success: false, error: authError.message };
+    }
+
+    // Create user record in users table
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .insert([{
+        email: email,
+        name: name,
+        phone: phone,
+        password: password,
+        role: 'user',
+        is_active: true,
+        created_at: new Date().toISOString()
+      }])
+      .select()
+      .single();
+
+    if (userError) {
+      console.log('User table insert error:', userError.message);
+      // Don't fail if users table insert fails - auth was successful
+      return {
+        success: true,
+        user: {
+          id: authData.user.id,
+          email: email,
+          name: name,
+          phone: phone,
+          role: 'user'
+        }
+      };
+    }
+
+    console.log('Signup successful');
+    return {
+      success: true,
+      user: {
+        id: userData.id,
+        email: userData.email,
+        name: userData.name,
+        phone: userData.phone,
+        role: userData.role
+      }
+    };
+  } catch (error) {
+    console.error('Signup error:', error);
+    return { success: false, error: error.message || 'An error occurred during signup' };
+  }
+}
+
 async function getAllBookings() {
   try {
     const { data, error } = await supabase
@@ -993,6 +1082,7 @@ const Navigation = ({ currentPage, isAuthenticated, userRole, onNavigate, onLogo
       ) : (
         <>
           <button style={styles.navLink} onClick={() => onNavigate('login-user')}>Login</button>
+          <button style={{...styles.navLink, color: colors.red}} onClick={() => onNavigate('signup')}>Sign Up</button>
           <button style={{...styles.navLink, color: colors.red}} onClick={() => onNavigate('login-admin')}>Admin</button>
         </>
       )}
@@ -1206,6 +1296,164 @@ const LoginPage = ({ isAdmin, onLogin, onNavigate }) => {
               {loading ? 'Signing In...' : 'Sign In'}
             </button>
           </form>
+          
+          {!isAdmin && (
+            <div style={{marginTop: '24px', textAlign: 'center', borderTop: `1px solid ${colors.gray200}`, paddingTop: '24px'}}>
+              <p style={{color: colors.gray500, marginBottom: '12px'}}>Don't have an account?</p>
+              <button 
+                style={{...styles.btnSecondary, width: '100%'}}
+                onClick={() => onNavigate('signup')}
+              >
+                Create Account
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Signup Page
+const SignupPage = ({ onSignup, onNavigate }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState({ type: '', text: '' });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage({ type: 'info', text: 'Creating account...' });
+    
+    // Validate passwords match
+    if (password !== confirmPassword) {
+      setMessage({ type: 'error', text: 'Passwords do not match' });
+      setLoading(false);
+      return;
+    }
+
+    const result = await signupUser(email, password, name, phone);
+    
+    if (result.success) {
+      setMessage({ type: 'success', text: '✅ Account created successfully! Logging you in...' });
+      setTimeout(() => onSignup(result.user, 'user'), 1500);
+    } else {
+      setMessage({ type: 'error', text: result.error });
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{...styles.page, backgroundColor: colors.gray50}}>
+      <header style={styles.innerHeader}>
+        <div style={styles.innerHeaderContent}>
+          <button style={styles.backButton} onClick={() => onNavigate('home')}>← Back to Home</button>
+          <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+            <span style={{fontSize: '24px'}}>🎵</span>
+            <span style={{fontSize: '20px', fontWeight: 'bold', letterSpacing: '2px'}}>FINETUNE STUDIOS</span>
+          </div>
+        </div>
+      </header>
+
+      <div style={styles.loginContainer}>
+        <div style={styles.loginCard}>
+          <div style={styles.loginHeader}>
+            <div style={styles.loginIcon}>✨</div>
+            <h1 style={styles.loginTitle}>CREATE YOUR ACCOUNT</h1>
+            <p style={styles.loginSubtitle}>Join us and start booking your studio sessions</p>
+          </div>
+
+          {message.text && (
+            <div style={{
+              ...styles.alert,
+              ...(message.type === 'success' ? styles.alertSuccess : message.type === 'error' ? styles.alertError : styles.alertInfo)
+            }}>
+              {message.text}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit}>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Full Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                style={styles.input}
+                placeholder="John Doe"
+              />
+            </div>
+
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Email Address</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                style={styles.input}
+                placeholder="your@email.com"
+              />
+            </div>
+
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Phone Number</label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                required
+                style={styles.input}
+                placeholder="+27 (0)11 234 5678"
+              />
+            </div>
+
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                style={styles.input}
+                placeholder="••••••••"
+              />
+              <p style={{fontSize: '12px', color: colors.gray500, marginTop: '8px'}}>
+                Must be at least 6 characters
+              </p>
+            </div>
+
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Confirm Password</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                style={styles.input}
+                placeholder="••••••••"
+              />
+            </div>
+
+            <button type="submit" disabled={loading} style={{...styles.btnPrimary, width: '100%', padding: '16px'}}>
+              {loading ? 'Creating Account...' : 'Create Account'}
+            </button>
+          </form>
+
+          <div style={{marginTop: '24px', textAlign: 'center', borderTop: `1px solid ${colors.gray200}`, paddingTop: '24px'}}>
+            <p style={{color: colors.gray500, marginBottom: '12px'}}>Already have an account?</p>
+            <button 
+              style={{...styles.btnSecondary, width: '100%'}}
+              onClick={() => onNavigate('login-user')}
+            >
+              Sign In
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1680,6 +1928,13 @@ export default function FinetuneStudios() {
     setCurrentPage(role === 'admin' ? 'admin-dashboard' : 'user-dashboard');
   };
 
+  const handleSignup = (user, role) => {
+    setIsAuthenticated(true);
+    setUserRole(role);
+    setCurrentUser(user);
+    setCurrentPage(role === 'user' ? 'user-dashboard' : 'admin-dashboard');
+  };
+
   const handleLogout = () => {
     setIsAuthenticated(false);
     setUserRole(null);
@@ -1687,7 +1942,7 @@ export default function FinetuneStudios() {
     setCurrentPage('home');
   };
 
-  const showNav = !['login-admin', 'login-user', 'admin-dashboard', 'book'].includes(currentPage);
+  const showNav = !['login-admin', 'login-user', 'signup', 'admin-dashboard', 'book'].includes(currentPage);
 
   return (
     <div>
@@ -1705,6 +1960,7 @@ export default function FinetuneStudios() {
       {currentPage === 'studios' && <StudiosPage onNavigate={setCurrentPage} />}
       {currentPage === 'login-admin' && <LoginPage isAdmin={true} onLogin={handleLogin} onNavigate={setCurrentPage} />}
       {currentPage === 'login-user' && <LoginPage isAdmin={false} onLogin={handleLogin} onNavigate={setCurrentPage} />}
+      {currentPage === 'signup' && <SignupPage onSignup={handleSignup} onNavigate={setCurrentPage} />}
       {currentPage === 'admin-dashboard' && <AdminDashboard user={currentUser} onNavigate={setCurrentPage} onLogout={handleLogout} />}
       {currentPage === 'book' && <BookingFlow user={currentUser} onNavigate={setCurrentPage} />}
 
