@@ -1076,7 +1076,9 @@ const Navigation = ({ currentPage, isAuthenticated, userRole, onNavigate, onLogo
       <button style={styles.navLink} onClick={() => onNavigate('studios')}>Studios</button>
       {isAuthenticated ? (
         <>
-          <button style={styles.navLink} onClick={() => onNavigate(userRole === 'admin' ? 'admin-dashboard' : 'user-dashboard')}>Dashboard</button>
+          {userRole === 'admin' && (
+            <button style={styles.navLink} onClick={() => onNavigate('admin-dashboard')}>Dashboard</button>
+          )}
           <button style={{...styles.btnOutline, color: colors.white, borderColor: colors.gray600}} onClick={onLogout}>Logout</button>
         </>
       ) : (
@@ -1925,14 +1927,14 @@ export default function FinetuneStudios() {
     setIsAuthenticated(true);
     setUserRole(role);
     setCurrentUser(user);
-    setCurrentPage(role === 'admin' ? 'admin-dashboard' : 'user-dashboard');
+    setCurrentPage(role === 'admin' ? 'admin-dashboard' : 'home');
   };
 
   const handleSignup = (user, role) => {
     setIsAuthenticated(true);
     setUserRole(role);
     setCurrentUser(user);
-    setCurrentPage(role === 'user' ? 'user-dashboard' : 'admin-dashboard');
+    setCurrentPage(role === 'user' ? 'home' : 'admin-dashboard');
   };
 
   const handleLogout = () => {
