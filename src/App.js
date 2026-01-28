@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
 
 // ============================================================
 // SUPABASE CONFIGURATION
 // ============================================================
 const SUPABASE_URL = 'https://yqiktstghcnxglrcjyco.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxaWt0c3RnaGNueGdscmNqeWNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk1MDkxMDksImV4cCI6MjA4NTA4NTEwOX0.HST-SwwXDOtJ5uaPQ-1QK4fVTw8f5CzWEys2Diqp3ks';
+
+// Initialize Supabase client
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ============================================================
 // DATA
@@ -68,84 +72,156 @@ const availableSlots = [
 // ============================================================
 // DATABASE FUNCTIONS
 // ============================================================
+// Demo credentials for testing (in production, use Supabase Auth)
+const DEMO_CREDENTIALS = {
+  admin: {
+    email: 'huve@marketing2themax.co.za',
+    password: 'Admin@123',
+    name: 'Admin User',
+    id: 'admin-demo-001'
+  }
+};
+
 async function loginUser(email, password, role) {
   try {
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?email=eq.${encodeURIComponent(email)}&role=eq.${role}&is_active=eq.true`,
-      {
-        headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        }
+    console.log('Login attempt:', { email, role });
+
+    // First check demo credentials for immediate testing
+    if (role === 'admin' && DEMO_CREDENTIALS.admin) {
+      const demoAdmin = DEMO_CREDENTIALS.admin;
+      if (email === demoAdmin.email && password === demoAdmin.password) {
+        console.log('Login successful with demo credentials');
+        return {
+          success: true,
+          user: {
+            id: demoAdmin.id,
+            email: demoAdmin.email,
+            name: demoAdmin.name,
+            role: role
+          }
+        };
       }
-    );
-    const users = await response.json();
-    if (users.length === 0) return { success: false, error: 'User not found' };
-    const user = users[0];
-    if (user.password !== password) return { success: false, error: 'Invalid password' };
-    return { success: true, user: { id: user.id, email: user.email, name: user.name, role: user.role } };
+    }
+
+    // Try to authenticate using Supabase Auth as fallback
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    console.log('Auth result:', { hasData: !!authData?.user, error: authError?.message });
+
+    if (authError || !authData?.user) {
+      console.log('Auth failed, trying custom users table');
+      
+      // Try custom users table
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, email, name, role, password, is_active')
+        .eq('email', email)
+        .eq('role', role)
+        .eq('is_active', true)
+        .single();
+
+      console.log('Users table query result:', { found: !!data, error: error?.message });
+
+      if (error || !data) {
+        return { success: false, error: 'User not found. Please check your credentials.' };
+      }
+
+      // Verify password
+      if (data.password !== password) {
+        return { success: false, error: 'Invalid password' };
+      }
+
+      return { 
+        success: true, 
+        user: { 
+          id: data.id, 
+          email: data.email, 
+          name: data.name, 
+          role: data.role 
+        } 
+      };
+    }
+
+    // If Supabase Auth succeeds, try to get user profile from users table
+    const { data: userData } = await supabase
+      .from('users')
+      .select('id, email, name, role, is_active')
+      .eq('email', email)
+      .eq('role', role)
+      .eq('is_active', true)
+      .single();
+
+    console.log('Login successful with Supabase Auth');
+    return { 
+      success: true, 
+      user: {
+        id: userData?.id || authData.user.id,
+        email: userData?.email || authData.user.email,
+        name: userData?.name || authData.user.user_metadata?.name || email,
+        role: userData?.role || role
+      } 
+    };
   } catch (error) {
-    return { success: false, error: error.message };
+    console.error('Login error:', error);
+    return { success: false, error: error.message || 'An error occurred during login' };
   }
 }
 
 async function getAllBookings() {
   try {
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/bookings?select=*&order=created_at.desc`, {
-      headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-      }
-    });
-    const bookings = await response.json();
-    return { success: true, data: bookings };
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return { success: true, data };
   } catch (error) {
+    console.error('Error fetching bookings:', error);
     return { success: false, error: error.message };
   }
 }
 
 async function getBookingsByDateAndStudio(date, studioId) {
   try {
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/bookings?date=eq.${date}&studio_id=eq.${studioId}&status=in.(confirmed,pending)`,
-      {
-        headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        }
-      }
-    );
-    const bookings = await response.json();
-    return { success: true, data: bookings };
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('date', date)
+      .eq('studio_id', studioId)
+      .in('status', ['confirmed', 'pending']);
+    
+    if (error) throw error;
+    return { success: true, data };
   } catch (error) {
+    console.error('Error fetching bookings:', error);
     return { success: false, error: error.message };
   }
 }
 
 async function createBooking(bookingData) {
   try {
-    const allBookings = await fetch(`${SUPABASE_URL}/rest/v1/bookings?select=id`, {
-      headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-      }
-    });
-    const bookings = await allBookings.json();
-    const bookingNumber = `FTS-${new Date().getFullYear()}-${String(bookings.length + 1).padStart(4, '0')}`;
+    // Get all bookings to generate booking number
+    const { data: allBookings, error: fetchError } = await supabase
+      .from('bookings')
+      .select('id');
+    
+    if (fetchError) throw fetchError;
+    
+    const bookingNumber = `FTS-${new Date().getFullYear()}-${String((allBookings?.length || 0) + 1).padStart(4, '0')}`;
 
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/bookings`, {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
-      },
-      body: JSON.stringify({ booking_number: bookingNumber, ...bookingData })
-    });
-    const booking = await response.json();
-    return { success: true, data: booking[0] };
+    const { data, error } = await supabase
+      .from('bookings')
+      .insert([{ booking_number: bookingNumber, ...bookingData }])
+      .select();
+    
+    if (error) throw error;
+    return { success: true, data: data[0] };
   } catch (error) {
+    console.error('Error creating booking:', error);
     return { success: false, error: error.message };
   }
 }

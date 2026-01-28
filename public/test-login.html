@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Admin Login</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-section {
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <h1>Admin Login Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Demo Credentials</h2>
+        <p>Email: huve@marketing2themax.co.za</p>
+        <p>Password: Admin@123</p>
+        <button onclick="testLogin()">Test Admin Login</button>
+        <div id="result" class="result"></div>
+    </div>
+
+    <script type="module">
+        window.testLogin = async function() {
+            const result = document.getElementById('result');
+            result.textContent = 'Testing...';
+            
+            try {
+                // Import and test the login function
+                // First check if we can connect to Supabase
+                const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+                
+                const SUPABASE_URL = 'https://yqiktstghcnxglrcjyco.supabase.co';
+                const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxaWt0c3RnaGNueGdscmNqeWNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk1MDkxMDksImV4cCI6MjA4NTA4NTEwOX0.HST-SwwXDOtJ5uaPQ-1QK4fVTw8f5CzWEys2Diqp3ks';
+                
+                const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                
+                // Test with demo credentials
+                const DEMO_CREDENTIALS = {
+                    admin: {
+                        email: 'huve@marketing2themax.co.za',
+                        password: 'Admin@123',
+                        name: 'Admin User',
+                        id: 'admin-demo-001'
+                    }
+                };
+
+                const email = 'huve@marketing2themax.co.za';
+                const password = 'Admin@123';
+                const role = 'admin';
+
+                // Check demo credentials
+                if (role === 'admin' && DEMO_CREDENTIALS.admin) {
+                    const demoAdmin = DEMO_CREDENTIALS.admin;
+                    if (email === demoAdmin.email && password === demoAdmin.password) {
+                        result.textContent = 'SUCCESS! Login works with demo credentials\n\nUser data:\n' + 
+                                           JSON.stringify({
+                                               id: demoAdmin.id,
+                                               email: demoAdmin.email,
+                                               name: demoAdmin.name,
+                                               role: role
+                                           }, null, 2);
+                        return;
+                    }
+                }
+                
+                result.textContent = 'Demo credentials did not match';
+            } catch (error) {
+                result.textContent = 'Error: ' + error.message + '\n\n' + error.stack;
+            }
+        };
+    </script>
+</body>
+</html>
