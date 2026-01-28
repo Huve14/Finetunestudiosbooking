@@ -103,7 +103,7 @@ async function loginUser(email, password, role) {
       }
     }
 
-    // Try to authenticate using Supabase Auth as fallback
+    // Try to authenticate using Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email,
       password
@@ -113,60 +113,104 @@ async function loginUser(email, password, role) {
 
     if (authError || !authData?.user) {
       console.log('Auth failed, trying custom users table');
-      
-      // Try custom users table
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, email, name, role, password, is_active')
-        .eq('email', email)
-        .eq('role', role)
-        .eq('is_active', true)
-        .single();
 
-      console.log('Users table query result:', { found: !!data, error: error?.message });
+      // Choose table based on requested role: public users stored in public_users
+      const table = role === 'user' ? 'public_users' : 'users';
+      const selectCols = role === 'user' ? 'id, email, name, role, is_active' : 'id, email, name, role, password, is_active';
+
+      const { data, error } = await supabase
+        .from(table)
+        .select(selectCols)
+        .eq('email', email)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      console.log(`${table} query result:`, { found: !!data, error: error?.message });
 
       if (error || !data) {
         return { success: false, error: 'User not found. Please check your credentials.' };
       }
 
-      // Verify password
-      if (data.password !== password) {
-        return { success: false, error: 'Invalid password' };
+      // For admin (users table) verify password locally
+      if (role !== 'user') {
+        if (data.password !== password) {
+          return { success: false, error: 'Invalid password' };
+        }
+
+        return {
+          success: true,
+          user: {
+            id: data.id,
+            email: data.email,
+            name: data.name,
+            role: data.role
+          }
+        };
       }
 
-      return { 
-        success: true, 
-        user: { 
-          id: data.id, 
-          email: data.email, 
-          name: data.name, 
-          role: data.role 
-        } 
-      };
+      // For public users we rely on Supabase Auth for password checks; if auth failed, instruct reset
+      return { success: false, error: 'Authentication failed. If you just signed up, check your email to confirm; otherwise use password reset.' };
     }
 
-    // If Supabase Auth succeeds, try to get user profile from users table
-    const { data: userData } = await supabase
-      .from('users')
+    // If Supabase Auth succeeds, get user profile by email (don't trust requested role)
+    const profileTable = role === 'user' ? 'public_users' : 'users';
+    const { data: userData, error: userError } = await supabase
+      .from(profileTable)
       .select('id, email, name, role, is_active')
       .eq('email', email)
-      .eq('role', role)
-      .eq('is_active', true)
-      .single();
+      .maybeSingle();
+
+    console.log('User profile query result:', { found: !!userData, error: userError?.message });
+
+    // If the caller requested admin access but the stored profile is not admin, deny access
+    if (role === 'admin' && userData && userData.role !== 'admin') {
+      return { success: false, error: 'Not authorized for admin portal.' };
+    }
+
+    // Build final user object from stored profile when available; otherwise default to 'user'
+    const user = userData || {
+      id: authData.user.id,
+      email: authData.user.email,
+      name: authData.user.user_metadata?.name || email.split('@')[0],
+      role: 'user'
+    };
+
+    // If user profile doesn't exist but auth succeeded, create a profile for regular users
+    if (!userData && role === 'user') {
+      console.log('Creating user profile in public_users table...');
+      await supabase
+        .from('public_users')
+        .insert([{
+          id: authData.user.id,
+          email: authData.user.email,
+          name: authData.user.user_metadata?.name || email.split('@')[0],
+          phone: authData.user.user_metadata?.phone || '',
+          role: 'user',
+          is_active: true,
+          created_at: new Date().toISOString()
+        }])
+        .select()
+        .maybeSingle();
+    }
 
     console.log('Login successful with Supabase Auth');
     return { 
       success: true, 
-      user: {
-        id: userData?.id || authData.user.id,
-        email: userData?.email || authData.user.email,
-        name: userData?.name || authData.user.user_metadata?.name || email,
-        role: userData?.role || role
-      } 
+      user
     };
   } catch (error) {
     console.error('Login error:', error);
-    return { success: false, error: error.message || 'An error occurred during login' };
+    
+    // Handle specific error messages
+    let errorMessage = error.message || 'An error occurred during login';
+    
+    if (errorMessage.includes('rate limit') || errorMessage.includes('too many')) {
+      errorMessage = 'Too many login attempts. Please wait a few minutes before trying again.';
+    } else if (errorMessage.includes('invalid') || errorMessage.includes('Invalid')) {
+      errorMessage = 'Invalid email or password.';
+    }
+    
+    return { success: false, error: errorMessage };
   }
 }
 
@@ -183,12 +227,12 @@ async function signupUser(email, password, name, phone) {
       return { success: false, error: 'Password must be at least 6 characters' };
     }
 
-    // Check if user already exists
+    // Check if user already exists in public_users (public signups should use public_users)
     const { data: existingUser } = await supabase
-      .from('users')
+      .from('public_users')
       .select('email')
       .eq('email', email)
-      .single();
+      .maybeSingle();
 
     if (existingUser) {
       return { success: false, error: 'Email already registered. Please login instead.' };
@@ -209,53 +253,114 @@ async function signupUser(email, password, name, phone) {
     console.log('Auth signup result:', { hasData: !!authData?.user, error: authError?.message });
 
     if (authError) {
-      return { success: false, error: authError.message };
+      let errorMessage = authError.message || 'An error occurred during signup';
+      
+      // Handle specific Supabase error messages
+      if (errorMessage.includes('rate limit') || errorMessage.includes('too many') || errorMessage.includes('email_rate_limit_exceeded')) {
+        errorMessage = 'Too many signup attempts for this email. Please wait 1 hour before trying again, or use a different email address.';
+      } else if (errorMessage.includes('already registered') || errorMessage.includes('already exists')) {
+        errorMessage = 'This email is already registered. Please login instead.';
+      } else if (errorMessage.includes('invalid') || errorMessage.includes('Invalid')) {
+        errorMessage = 'Invalid email or password format.';
+      }
+      
+      return { success: false, error: errorMessage };
     }
 
-    // Create user record in users table
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .insert([{
-        email: email,
-        name: name,
-        phone: phone,
-        password: password,
-        role: 'user',
-        is_active: true,
-        created_at: new Date().toISOString()
-      }])
-      .select()
-      .single();
-
-    if (userError) {
-      console.log('User table insert error:', userError.message);
-      // Don't fail if users table insert fails - auth was successful
-      return {
-        success: true,
-        user: {
-          id: authData.user.id,
+    // Persist profile in 'public_users' table with the auth user id (preferred for public users)
+    const supabaseUserId = authData?.user?.id;
+    if (supabaseUserId) {
+      const { data: userData, error: userError } = await supabase
+        .from('public_users')
+        .insert([{
+          id: supabaseUserId,
           email: email,
           name: name,
           phone: phone,
-          role: 'user'
+          role: 'user',
+          is_active: true,
+          created_at: new Date().toISOString()
+        }])
+        .select()
+        .maybeSingle();
+
+      if (userError) {
+        console.warn('public_users insert failed:', userError.message);
+        // fallback: try inserting into users table if necessary
+        try {
+          const { error: fallbackErr } = await supabase
+            .from('users')
+            .insert([{
+              id: supabaseUserId,
+              email,
+              name,
+              phone,
+              password: password,
+              role: 'user',
+              is_active: true,
+              created_at: new Date().toISOString()
+            }]);
+
+          if (fallbackErr) {
+            console.warn('users insert fallback failed:', fallbackErr.message);
+          }
+        } catch (e) {
+          console.warn('users insert attempt threw:', e.message);
+        }
+
+        // Return success since auth succeeded; user profile may be created later by setup-admin or RLS-enabled flow
+        return {
+          success: true,
+          user: {
+            id: supabaseUserId,
+            email,
+            name,
+            phone,
+            role: 'user'
+          }
+        };
+      }
+
+      // If insert succeeded and returned a row, use it; otherwise fall back to auth id
+      const finalUser = userData || { id: supabaseUserId, email, name, phone, role: 'user' };
+
+      console.log('Signup successful');
+      return {
+        success: true,
+        user: {
+          id: finalUser.id,
+          email: finalUser.email,
+          name: finalUser.name,
+          phone: finalUser.phone,
+          role: finalUser.role || 'user'
         }
       };
     }
 
-    console.log('Signup successful');
+    // If for some reason auth didn't return an id, still return success (edge case)
     return {
       success: true,
       user: {
-        id: userData.id,
-        email: userData.email,
-        name: userData.name,
-        phone: userData.phone,
-        role: userData.role
+        id: null,
+        email,
+        name,
+        phone,
+        role: 'user'
       }
     };
   } catch (error) {
     console.error('Signup error:', error);
-    return { success: false, error: error.message || 'An error occurred during signup' };
+    
+    // Handle specific error messages
+    let errorMessage = error.message || 'An error occurred during signup';
+    
+    if (errorMessage.includes('rate limit') || errorMessage.includes('too many') || errorMessage.includes('email_rate_limit_exceeded')) {
+      errorMessage = 'Too many signup attempts for this email. Please wait 1 hour before trying again, or use a different email address.';
+    } else if (errorMessage.includes('already registered') || errorMessage.includes('already exists')) {
+      errorMessage = 'This email is already registered. Please login instead.';
+    }
+    
+    return { success: false, error: errorMessage };
   }
 }
 
@@ -1470,6 +1575,19 @@ const AdminDashboard = ({ user, onNavigate, onLogout }) => {
   useEffect(() => {
     loadBookings();
   }, []);
+
+  // Guard: Only admins can view this dashboard
+  useEffect(() => {
+    if (user && user.role !== 'admin') {
+      console.warn('Non-admin user attempted to access AdminDashboard; redirecting to home');
+      onNavigate('home');
+    }
+  }, [user, onNavigate]);
+
+  // Don't render if user is not admin
+  if (!user || user.role !== 'admin') {
+    return null;
+  }
 
   const loadBookings = async () => {
     const result = await getAllBookings();
