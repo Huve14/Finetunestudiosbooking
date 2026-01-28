@@ -444,17 +444,251 @@ async function getUserBookings(userId) {
 
 async function cancelBooking(bookingId) {
   try {
+    if (!bookingId) {
+      throw new Error('Booking ID is required');
+    }
+
+    console.log('Cancelling booking:', bookingId);
+    
     const { data, error } = await supabase
       .from('bookings')
       .update({ status: 'cancelled' })
       .eq('id', bookingId)
       .select();
     
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      throw new Error('Booking not found');
+    }
+
+    console.log('Booking cancelled successfully:', data[0]);
     return { success: true, data: data[0] };
   } catch (error) {
     console.error('Error cancelling booking:', error);
     return { success: false, error: error.message };
+  }
+}
+
+// Recurring Bookings
+async function createRecurringBooking(bookingData, frequency, occurrences, autoRenewal = false) {
+  try {
+    const bookings = [];
+    const startDate = new Date(bookingData.date);
+    
+    // Calculate interval based on frequency
+    const getNextDate = (currentDate, freq) => {
+      const next = new Date(currentDate);
+      if (freq === 'weekly') {
+        next.setDate(next.getDate() + 7);
+      } else if (freq === 'biweekly') {
+        next.setDate(next.getDate() + 14);
+      } else if (freq === 'monthly') {
+        next.setMonth(next.getMonth() + 1);
+      }
+      return next;
+    };
+    
+    // Create first booking as parent
+    const { data: allBookings } = await supabase.from('bookings').select('id');
+    const bookingNumber = `FTS-${new Date().getFullYear()}-${String((allBookings?.length || 0) + 1).padStart(4, '0')}`;
+    
+    const parentBooking = {
+      ...bookingData,
+      booking_number: bookingNumber,
+      is_recurring: true,
+      recurrence_frequency: frequency,
+      auto_renewal: autoRenewal,
+      parent_booking_id: null
+    };
+    
+    const { data: parent, error: parentError } = await supabase
+      .from('bookings')
+      .insert([parentBooking])
+      .select();
+    
+    if (parentError) throw parentError;
+    bookings.push(parent[0]);
+    
+    // Create subsequent bookings
+    let currentDate = startDate;
+    for (let i = 1; i < occurrences; i++) {
+      currentDate = getNextDate(currentDate, frequency);
+      const nextBookingNumber = `FTS-${new Date().getFullYear()}-${String((allBookings?.length || 0) + i + 1).padStart(4, '0')}`;
+      
+      const childBooking = {
+        ...bookingData,
+        booking_number: nextBookingNumber,
+        date: currentDate.toISOString().split('T')[0],
+        is_recurring: true,
+        recurrence_frequency: frequency,
+        auto_renewal: autoRenewal,
+        parent_booking_id: parent[0].id
+      };
+      
+      const { data: child, error: childError } = await supabase
+        .from('bookings')
+        .insert([childBooking])
+        .select();
+      
+      if (childError) throw childError;
+      bookings.push(child[0]);
+    }
+    
+    return { success: true, data: bookings };
+  } catch (error) {
+    console.error('Error creating recurring booking:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Waitlist System
+// eslint-disable-next-line no-unused-vars
+async function addToWaitlist(waitlistData) {
+  try {
+    const { data, error } = await supabase
+      .from('waitlist')
+      .insert([{
+        user_id: waitlistData.userId,
+        studio_id: waitlistData.studioId,
+        service_id: waitlistData.serviceId,
+        date: waitlistData.date,
+        time: waitlistData.time,
+        priority: waitlistData.priority || 1,
+        status: 'waiting',
+        created_at: new Date().toISOString()
+      }])
+      .select();
+    
+    if (error) throw error;
+    return { success: true, data: data[0] };
+  } catch (error) {
+    console.error('Error adding to waitlist:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// eslint-disable-next-line no-unused-vars
+async function getWaitlistEntries(userId) {
+  try {
+    const { data, error } = await supabase
+      .from('waitlist')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status', 'waiting')
+      .order('priority', { ascending: false })
+      .order('created_at', { ascending: true });
+    
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error fetching waitlist:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// eslint-disable-next-line no-unused-vars
+async function removeFromWaitlist(waitlistId) {
+  try {
+    const { data, error } = await supabase
+      .from('waitlist')
+      .update({ status: 'removed' })
+      .eq('id', waitlistId)
+      .select();
+    
+    if (error) throw error;
+    return { success: true, data: data[0] };
+  } catch (error) {
+    console.error('Error removing from waitlist:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Rescheduling
+async function rescheduleBooking(bookingId, newDate, newTime, rescheduleFee = 0) {
+  try {
+    const { data, error } = await supabase
+      .from('bookings')
+      .update({
+        date: newDate,
+        time: newTime,
+        reschedule_fee: rescheduleFee,
+        rescheduled_at: new Date().toISOString(),
+        status: 'confirmed'
+      })
+      .eq('id', bookingId)
+      .select();
+    
+    if (error) throw error;
+    return { success: true, data: data[0] };
+  } catch (error) {
+    console.error('Error rescheduling booking:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function getAvailableRescheduleTimes(studioId, serviceId, date) {
+  try {
+    // Get existing bookings for the date
+    const { data: bookings, error: bookingsError } = await supabase
+      .from('bookings')
+      .select('time, service_id')
+      .eq('studio_id', studioId)
+      .eq('date', date)
+      .in('status', ['confirmed', 'pending']);
+    
+    if (bookingsError) throw bookingsError;
+    
+    // Get service duration
+    const service = services.find(s => s.id === serviceId);
+    const duration = service?.duration || 60;
+    
+    // Filter available slots
+    const available = availableSlots.filter(slot => {
+      const slotMinutes = parseInt(slot.split(':')[0]) * 60 + parseInt(slot.split(':')[1]);
+      const slotEndMinutes = slotMinutes + duration;
+      
+      // Check conflicts
+      for (const booking of bookings) {
+        const bookingService = services.find(s => s.id === booking.service_id);
+        const bookingDuration = bookingService?.duration || 60;
+        const bookingStartMinutes = parseInt(booking.time.split(':')[0]) * 60 + parseInt(booking.time.split(':')[1]);
+        const bookingEndMinutes = bookingStartMinutes + bookingDuration;
+        
+        if (
+          (slotMinutes >= bookingStartMinutes && slotMinutes < bookingEndMinutes) ||
+          (slotEndMinutes > bookingStartMinutes && slotEndMinutes <= bookingEndMinutes) ||
+          (slotMinutes <= bookingStartMinutes && slotEndMinutes >= bookingEndMinutes)
+        ) {
+          return false;
+        }
+      }
+      return true;
+    });
+    
+    return { success: true, data: available };
+  } catch (error) {
+    console.error('Error getting available times:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+function calculateRescheduleFee(bookingDate, bookingTime) {
+  const now = new Date();
+  const bookingDateTime = new Date(`${bookingDate}T${bookingTime}`);
+  const hoursUntilBooking = (bookingDateTime - now) / (1000 * 60 * 60);
+  
+  if (hoursUntilBooking >= 24) {
+    return 0; // Free reschedule 24+ hours before
+  } else if (hoursUntilBooking >= 12) {
+    return 200; // R200 fee for 12-24 hours
+  } else if (hoursUntilBooking >= 6) {
+    return 400; // R400 fee for 6-12 hours
+  } else {
+    return 600; // R600 fee for less than 6 hours
   }
 }
 
@@ -994,57 +1228,86 @@ const styles = {
   // Selection Cards
   selectionGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))',
-    gap: 'clamp(12px, 3vw, 16px)'
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
+    gap: 'clamp(16px, 3vw, 20px)'
   },
   selectionCard: {
-    padding: 'clamp(16px, 4vw, 20px)',
+    padding: 'clamp(20px, 5vw, 24px)',
     border: `2px solid ${colors.gray200}`,
     borderRadius: '12px',
     cursor: 'pointer',
     textAlign: 'left',
     backgroundColor: colors.white,
-    transition: 'all 0.2s',
-    minHeight: '80px', // Touch-friendly
+    transition: 'all 0.3s ease',
+    minHeight: '100px',
     display: 'flex',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: '16px'
+    gap: '16px',
+    position: 'relative'
   },
   selectionCardActive: {
     borderColor: colors.red,
-    backgroundColor: '#fef2f2'
+    backgroundColor: 'rgba(220, 38, 38, 0.05)'
   },
   selectionInfo: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '4px',
-    flex: 1
+    gap: '6px',
+    flex: 1,
+    minWidth: 0
   },
   selectionName: {
-    fontSize: 'clamp(16px, 3vw, 18px)',
+    fontSize: 'clamp(15px, 3vw, 17px)',
     fontWeight: 'bold',
     letterSpacing: '0.5px',
     margin: 0,
-    lineHeight: 1.2
+    lineHeight: 1.3,
+    wordBreak: 'break-word',
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden'
   },
   selectionIcon: {
     fontSize: '40px',
-    marginBottom: '12px'
+    marginBottom: '12px',
+    flexShrink: 0
+  },
+  studioIconWrapper: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 'clamp(50px, 10vw, 60px)',
+    height: 'clamp(50px, 10vw, 60px)',
+    flexShrink: 0,
+    minWidth: 'clamp(50px, 10vw, 60px)'
+  },
+  studioInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    flex: 1,
+    minWidth: 0
   },
   selectionMeta: {
-    fontSize: '12px',
+    fontSize: '13px',
     color: colors.gray500,
-    marginTop: '4px'
+    marginTop: '0',
+    lineHeight: 1.4,
+    wordBreak: 'break-word'
   },
   selectionPrice: {
     color: colors.red,
     fontWeight: 'bold',
-    fontSize: 'clamp(20px, 5vw, 24px)',
+    fontSize: 'clamp(18px, 4vw, 22px)',
     marginTop: '0',
     whiteSpace: 'nowrap',
-    flexShrink: 0
+    flexShrink: 0,
+    minWidth: 'max-content',
+    alignSelf: 'flex-start',
+    paddingTop: '4px'
   },
   
   // Service List
@@ -1062,7 +1325,8 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: colors.white,
-    transition: 'all 0.2s'
+    transition: 'all 0.3s ease',
+    minHeight: '70px'
   },
   
   // Time Slots
@@ -1079,16 +1343,17 @@ const styles = {
     textAlign: 'center',
     fontWeight: 'bold',
     backgroundColor: colors.white,
-    transition: 'all 0.2s',
-    minHeight: '56px', // Touch-friendly
+    transition: 'all 0.3s ease',
+    minHeight: '56px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: 'clamp(14px, 3vw, 16px)'
+    fontSize: 'clamp(14px, 3vw, 16px)',
+    flexDirection: 'column'
   },
   timeSlotActive: {
     borderColor: colors.red,
-    backgroundColor: '#fef2f2',
+    backgroundColor: 'rgba(220, 38, 38, 0.1)',
     color: colors.red
   },
   timeSlotBooked: {
@@ -1845,6 +2110,9 @@ const MyBookings = ({ user, onNavigate }) => {
   const [activeTab, setActiveTab] = useState('upcoming');
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [rescheduling, setRescheduling] = useState(null);
+  const [alternativeTimes, setAlternativeTimes] = useState([]);
+  const [loadingAlternatives, setLoadingAlternatives] = useState(false);
 
   // Loyalty tiers
   const loyaltyTiers = [
@@ -1885,12 +2153,20 @@ const MyBookings = ({ user, onNavigate }) => {
   const handleCancelBooking = async (bookingId) => {
     if (!window.confirm('Are you sure you want to cancel this booking?')) return;
     
-    const result = await cancelBooking(bookingId);
-    if (result.success) {
-      alert('Booking cancelled successfully');
-      loadBookings();
-    } else {
-      alert('Failed to cancel booking: ' + result.error);
+    try {
+      console.log('handleCancelBooking called with ID:', bookingId);
+      const result = await cancelBooking(bookingId);
+      
+      if (result.success) {
+        alert('✅ Booking cancelled successfully');
+        // Reload bookings
+        await loadBookings();
+      } else {
+        alert('❌ Failed to cancel booking: ' + result.error);
+      }
+    } catch (error) {
+      console.error('Error in handleCancelBooking:', error);
+      alert('❌ An error occurred: ' + error.message);
     }
   };
 
@@ -1914,6 +2190,9 @@ const MyBookings = ({ user, onNavigate }) => {
     const isPast = bookingDate < today;
     const studio = studios.find(s => s.id === booking.studio_id);
     const service = services.find(s => s.id === booking.service_id);
+    // eslint-disable-next-line no-unused-vars
+    const rescheduleFee = calculateRescheduleFee(booking.date, booking.time);
+    const canReschedule = !isPast && booking.status === 'confirmed';
 
     return (
       <div style={{
@@ -1939,6 +2218,11 @@ const MyBookings = ({ user, onNavigate }) => {
             <div style={{marginTop: '8px', fontSize: '12px', color: colors.gray500}}>
               <strong>Booking #:</strong> {booking.booking_number}
             </div>
+            {booking.is_recurring && (
+              <div style={{marginTop: '8px', padding: '6px 12px', backgroundColor: '#eff6ff', color: '#1e40af', borderRadius: '6px', fontSize: '12px', fontWeight: '600'}}>
+                🔁 Recurring Booking ({booking.recurrence_frequency})
+              </div>
+            )}
             {booking.status === 'cancelled' && (
               <div style={{marginTop: '8px', padding: '8px 12px', backgroundColor: '#fee2e2', color: colors.red, borderRadius: '6px', fontSize: '12px', fontWeight: 'bold'}}>
                 ❌ CANCELLED
@@ -1947,13 +2231,40 @@ const MyBookings = ({ user, onNavigate }) => {
           </div>
           <div style={{display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px'}}>
             <div style={{fontSize: 'clamp(20px, 5vw, 24px)', fontWeight: 'bold', color: colors.red}}>R{booking.total_price}</div>
-            {!isPast && booking.status === 'confirmed' && (
-              <button 
-                style={{...styles.btnOutline, padding: '8px 16px', fontSize: '12px', color: colors.red, borderColor: colors.red, minHeight: 'auto'}}
-                onClick={() => handleCancelBooking(booking.id)}
-              >
-                Cancel Booking
-              </button>
+            {canReschedule && (
+              <>
+                <button 
+                  style={{...styles.btnSecondary, padding: '8px 16px', fontSize: '12px', minHeight: 'auto'}}
+                  onClick={async () => {
+                    setRescheduling(booking);
+                    setLoadingAlternatives(true);
+                    // Get next 7 days of alternatives
+                    const alternatives = [];
+                    for (let i = 1; i <= 7; i++) {
+                      const nextDate = new Date(today);
+                      nextDate.setDate(nextDate.getDate() + i);
+                      const dateStr = nextDate.toISOString().split('T')[0];
+                      const result = await getAvailableRescheduleTimes(booking.studio_id, booking.service_id, dateStr);
+                      if (result.success && result.data.length > 0) {
+                        alternatives.push({
+                          date: dateStr,
+                          times: result.data
+                        });
+                      }
+                    }
+                    setAlternativeTimes(alternatives);
+                    setLoadingAlternatives(false);
+                  }}
+                >
+                  🔄 Reschedule
+                </button>
+                <button 
+                  style={{...styles.btnOutline, padding: '8px 16px', fontSize: '12px', color: colors.red, borderColor: colors.red, minHeight: 'auto'}}
+                  onClick={() => handleCancelBooking(booking.id)}
+                >
+                  Cancel Booking
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -2078,6 +2389,162 @@ const MyBookings = ({ user, onNavigate }) => {
           displayBookings.map(booking => <BookingCard key={booking.id} booking={booking} />)
         )}
       </div>
+
+      {/* Reschedule Modal */}
+      {rescheduling && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000,
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: colors.white,
+            borderRadius: '16px',
+            maxWidth: '600px',
+            width: '100%',
+            maxHeight: '80vh',
+            overflow: 'auto',
+            padding: 'clamp(24px, 5vw, 32px)'
+          }}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px'}}>
+              <h2 style={{fontSize: 'clamp(20px, 4vw, 24px)', fontWeight: 'bold', margin: 0}}>🔄 Reschedule Booking</h2>
+              <button
+                onClick={() => {
+                  setRescheduling(null);
+                  setAlternativeTimes([]);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  color: colors.gray600
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{
+              padding: '16px',
+              backgroundColor: colors.gray50,
+              borderRadius: '8px',
+              marginBottom: '20px'
+            }}>
+              <p style={{margin: '0 0 8px 0', fontSize: '14px'}}><strong>Current Booking:</strong></p>
+              <p style={{margin: '4px 0', fontSize: '14px'}}>{studios.find(s => s.id === rescheduling.studio_id)?.name}</p>
+              <p style={{margin: '4px 0', fontSize: '14px'}}>{new Date(rescheduling.date).toLocaleDateString('en-ZA', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })} at {rescheduling.time}</p>
+            </div>
+
+            {calculateRescheduleFee(rescheduling.date, rescheduling.time) > 0 && (
+              <div style={{
+                padding: '12px',
+                backgroundColor: '#fef3c7',
+                borderRadius: '8px',
+                marginBottom: '20px',
+                border: `1px solid #f59e0b`
+              }}>
+                <p style={{margin: 0, fontSize: '14px', color: colors.gray800}}>
+                  ⚠️ <strong>Reschedule Fee:</strong> R{calculateRescheduleFee(rescheduling.date, rescheduling.time)}<br/>
+                  <small style={{fontSize: '12px', color: colors.gray600}}>
+                    Free reschedules are only available 24+ hours before your booking.
+                  </small>
+                </p>
+              </div>
+            )}
+
+            {loadingAlternatives ? (
+              <div style={{textAlign: 'center', padding: '40px', color: colors.gray500}}>
+                <div style={{fontSize: '32px', marginBottom: '12px'}}>⏳</div>
+                <p>Finding available times...</p>
+              </div>
+            ) : alternativeTimes.length === 0 ? (
+              <div style={{textAlign: 'center', padding: '40px'}}>
+                <div style={{fontSize: '48px', marginBottom: '12px'}}>📅</div>
+                <p style={{color: colors.gray600, marginBottom: '16px'}}>No available slots found in the next 7 days</p>
+                <button
+                  style={styles.btnPrimary}
+                  onClick={() => {
+                    setRescheduling(null);
+                    onNavigate('book');
+                  }}
+                >
+                  Browse All Dates
+                </button>
+              </div>
+            ) : (
+              <div>
+                <h3 style={{fontSize: '16px', fontWeight: 'bold', marginBottom: '16px'}}>Select New Date & Time:</h3>
+                {alternativeTimes.map((alt, idx) => (
+                  <div key={idx} style={{marginBottom: '20px'}}>
+                    <div style={{
+                      fontSize: '14px',
+                      fontWeight: 'bold',
+                      marginBottom: '8px',
+                      color: colors.gray700
+                    }}>
+                      {new Date(alt.date).toLocaleDateString('en-ZA', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    </div>
+                    <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px'}}>
+                      {alt.times.map(time => (
+                        <button
+                          key={time}
+                          onClick={async () => {
+                            const fee = calculateRescheduleFee(rescheduling.date, rescheduling.time);
+                            const confirmed = window.confirm(
+                              `Reschedule to ${new Date(alt.date).toLocaleDateString('en-ZA')} at ${time}?${fee > 0 ? `\n\nReschedule fee: R${fee}` : ''}`
+                            );
+                            if (confirmed) {
+                              const result = await rescheduleBooking(rescheduling.id, alt.date, time, fee);
+                              if (result.success) {
+                                alert(`✅ Booking rescheduled successfully!${fee > 0 ? ` Fee of R${fee} will be added to your invoice.` : ''}`);
+                                setRescheduling(null);
+                                setAlternativeTimes([]);
+                                loadBookings();
+                              } else {
+                                alert('Failed to reschedule: ' + result.error);
+                              }
+                            }
+                          }}
+                          style={{
+                            padding: '8px 16px',
+                            border: `2px solid ${colors.gray300}`,
+                            borderRadius: '8px',
+                            backgroundColor: colors.white,
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: '600',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.borderColor = colors.red;
+                            e.target.style.backgroundColor = '#fef2f2';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.borderColor = colors.gray300;
+                            e.target.style.backgroundColor = colors.white;
+                          }}
+                        >
+                          {time}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -2101,12 +2568,19 @@ const BookingFlow = ({ user, onNavigate }) => {
     clientName: '',
     clientEmail: '',
     clientPhone: '',
-    clientNotes: ''
+    clientNotes: '',
+    isRecurring: false,
+    recurrenceFrequency: 'weekly',
+    occurrences: 4,
+    autoRenewal: false
   });
   const [confirmedBookings, setConfirmedBookings] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [monthlyBookings, setMonthlyBookings] = useState({});
+  // eslint-disable-next-line no-unused-vars
+  const [hoveredCardId, setHoveredCardId] = useState(null);
+  const [waitlistAdded, setWaitlistAdded] = useState(false);
 
   const updateBooking = (key, value) => {
     setBookingData(prev => ({ ...prev, [key]: value }));
@@ -2200,26 +2674,97 @@ const BookingFlow = ({ user, onNavigate }) => {
   };
 
   const submitBooking = async () => {
-    const service = services.find(s => s.id === bookingData.serviceId);
-    const result = await createBooking({
-      user_id: user?.id,
-      studio_id: bookingData.studioId,
-      service_id: bookingData.serviceId,
-      date: bookingData.date,
-      time: bookingData.time,
-      client_name: bookingData.clientName,
-      client_email: bookingData.clientEmail,
-      client_phone: bookingData.clientPhone,
-      client_notes: bookingData.clientNotes,
-      status: 'confirmed',
-      total_price: service?.price
-    });
+    try {
+      // Validate required fields
+      if (!bookingData.studioId || !bookingData.serviceId || !bookingData.date || !bookingData.time) {
+        alert('❌ Missing booking details. Please fill all required fields.');
+        return;
+      }
 
-    if (result.success) {
-      alert('🎉 Booking confirmed! You will receive a confirmation email shortly.');
-      onNavigate('home');
-    } else {
-      alert('Booking failed: ' + result.error);
+      if (!bookingData.clientName || !bookingData.clientEmail) {
+        alert('❌ Please provide your name and email address.');
+        return;
+      }
+
+      const service = services.find(s => s.id === bookingData.serviceId);
+      if (!service) {
+        alert('❌ Service not found.');
+        return;
+      }
+
+      if (!user?.id) {
+        alert('❌ You must be logged in to book.');
+        return;
+      }
+      
+      // Check if it's a recurring booking
+      if (bookingData.isRecurring) {
+        const totalPrice = Math.round(service.price * bookingData.occurrences * 0.9); // 10% discount
+        const result = await createRecurringBooking(
+          {
+            user_id: user.id,
+            studio_id: bookingData.studioId,
+            service_id: bookingData.serviceId,
+            date: bookingData.date,
+            time: bookingData.time,
+            client_name: bookingData.clientName,
+            client_email: bookingData.clientEmail,
+            client_phone: bookingData.clientPhone,
+            client_notes: bookingData.clientNotes,
+            status: 'confirmed',
+            total_price: service.price
+          },
+          bookingData.recurrenceFrequency,
+          bookingData.occurrences,
+          bookingData.autoRenewal
+        );
+
+        if (result.success) {
+          alert(`🎉 Recurring booking confirmed! ${bookingData.occurrences} sessions created with 10% discount (Total: R${totalPrice}). You will receive confirmation emails shortly.`);
+          // Reset form
+          setBookingData({
+            studioId: '', serviceId: '', date: '', time: '', clientName: '', clientEmail: '', 
+            clientPhone: '', clientNotes: '', isRecurring: false, recurrenceFrequency: 'weekly', 
+            occurrences: 4, autoRenewal: false
+          });
+          setStep(1);
+          onNavigate('home');
+        } else {
+          alert('❌ Booking failed: ' + (result.error || 'Unknown error'));
+        }
+      } else {
+        // Single booking
+        const result = await createBooking({
+          user_id: user.id,
+          studio_id: bookingData.studioId,
+          service_id: bookingData.serviceId,
+          date: bookingData.date,
+          time: bookingData.time,
+          client_name: bookingData.clientName,
+          client_email: bookingData.clientEmail,
+          client_phone: bookingData.clientPhone,
+          client_notes: bookingData.clientNotes,
+          status: 'confirmed',
+          total_price: service.price
+        });
+
+        if (result.success) {
+          alert('🎉 Booking confirmed! You will receive a confirmation email shortly.');
+          // Reset form
+          setBookingData({
+            studioId: '', serviceId: '', date: '', time: '', clientName: '', clientEmail: '', 
+            clientPhone: '', clientNotes: '', isRecurring: false, recurrenceFrequency: 'weekly', 
+            occurrences: 4, autoRenewal: false
+          });
+          setStep(1);
+          onNavigate('home');
+        } else {
+          alert('❌ Booking failed: ' + (result.error || 'Unknown error'));
+        }
+      }
+    } catch (error) {
+      console.error('submitBooking error:', error);
+      alert('❌ An unexpected error occurred: ' + error.message);
     }
   };
 
@@ -2278,14 +2823,32 @@ const BookingFlow = ({ user, onNavigate }) => {
                   <button
                     key={studio.id}
                     onClick={() => updateBooking('studioId', studio.id)}
+                    onMouseEnter={() => setHoveredCardId(studio.id)}
+                    onMouseLeave={() => setHoveredCardId(null)}
                     style={{
                       ...styles.selectionCard,
-                      ...(bookingData.studioId === studio.id ? styles.selectionCardActive : {})
+                      ...(bookingData.studioId === studio.id ? styles.selectionCardActive : {}),
+                      ...(hoveredCardId === studio.id && bookingData.studioId !== studio.id ? {
+                        backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                        borderColor: colors.gray400,
+                        transform: 'translateY(-2px)',
+                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
+                      } : {}),
+                      ...(hoveredCardId === studio.id && bookingData.studioId === studio.id ? {
+                        backgroundColor: 'rgba(220, 38, 38, 0.15)',
+                        borderColor: colors.red,
+                        transform: 'translateY(-2px)',
+                        boxShadow: '0 6px 16px rgba(220, 38, 38, 0.2)'
+                      } : {})
                     }}
                   >
-                    <div style={styles.selectionIcon}>{studio.image}</div>
-                    <div style={styles.selectionName}>{studio.name}</div>
-                    <div style={styles.selectionMeta}>{studio.location}</div>
+                    <div style={styles.studioIconWrapper}>
+                      <div style={{fontSize: 'clamp(32px, 6vw, 40px)'}}>{studio.image}</div>
+                    </div>
+                    <div style={styles.studioInfo}>
+                      <div style={styles.selectionName}>{studio.name}</div>
+                      <div style={styles.selectionMeta}>{studio.location}</div>
+                    </div>
                     <div style={styles.selectionPrice}>R{studio.hourlyRate}/hr</div>
                   </button>
                 ))}
@@ -2302,9 +2865,23 @@ const BookingFlow = ({ user, onNavigate }) => {
                   <button
                     key={service.id}
                     onClick={() => updateBooking('serviceId', service.id)}
+                    onMouseEnter={() => setHoveredCardId(service.id)}
+                    onMouseLeave={() => setHoveredCardId(null)}
                     style={{
                       ...styles.serviceCard,
-                      ...(bookingData.serviceId === service.id ? styles.selectionCardActive : {})
+                      ...(bookingData.serviceId === service.id ? styles.selectionCardActive : {}),
+                      ...(hoveredCardId === service.id && bookingData.serviceId !== service.id ? {
+                        backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                        borderColor: colors.gray400,
+                        transform: 'translateX(4px)',
+                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
+                      } : {}),
+                      ...(hoveredCardId === service.id && bookingData.serviceId === service.id ? {
+                        backgroundColor: 'rgba(220, 38, 38, 0.15)',
+                        borderColor: colors.red,
+                        transform: 'translateX(4px)',
+                        boxShadow: '0 6px 16px rgba(220, 38, 38, 0.2)'
+                      } : {})
                     }}
                   >
                     <div style={styles.selectionInfo}>
@@ -2479,10 +3056,24 @@ const BookingFlow = ({ user, onNavigate }) => {
                             key={slot}
                             onClick={() => !isBooked && updateBooking('time', slot)}
                             disabled={isBooked}
+                            onMouseEnter={() => !isBooked && setHoveredCardId(slot)}
+                            onMouseLeave={() => setHoveredCardId(null)}
                             style={{
                               ...styles.timeSlot,
                               ...(isBooked ? styles.timeSlotBooked : {}),
-                              ...(bookingData.time === slot ? styles.timeSlotActive : {})
+                              ...(bookingData.time === slot ? styles.timeSlotActive : {}),
+                              ...(!isBooked && hoveredCardId === slot && bookingData.time !== slot ? {
+                                backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                                borderColor: colors.gray400,
+                                transform: 'scale(1.05)',
+                                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
+                              } : {}),
+                              ...(!isBooked && hoveredCardId === slot && bookingData.time === slot ? {
+                                backgroundColor: 'rgba(220, 38, 38, 0.2)',
+                                borderColor: colors.red,
+                                transform: 'scale(1.05)',
+                                boxShadow: '0 6px 16px rgba(220, 38, 38, 0.3)'
+                              } : {})
                             }}
                           >
                             {slot}
@@ -2490,6 +3081,69 @@ const BookingFlow = ({ user, onNavigate }) => {
                           </button>
                         );
                       })}
+                    </div>
+                  )}
+
+                  {/* Waitlist Option when all slots booked */}
+                  {bookingData.date && bookedSlots.length === availableSlots.length && !loadingSlots && (
+                    <div style={{
+                      marginTop: '24px',
+                      padding: '20px',
+                      backgroundColor: '#fef3c7',
+                      borderRadius: '12px',
+                      border: `2px solid #f59e0b`,
+                      textAlign: 'center'
+                    }}>
+                      <div style={{fontSize: '32px', marginBottom: '12px'}}>⏳</div>
+                      <h3 style={{fontSize: '18px', marginBottom: '12px', color: colors.gray800}}>All Slots Fully Booked</h3>
+                      <p style={{color: colors.gray600, marginBottom: '16px', lineHeight: 1.6}}>
+                        This date is fully booked. Join the waitlist and we'll notify you automatically if a slot opens up!
+                      </p>
+                      {!waitlistAdded ? (
+                        <button
+                          style={{...styles.btnPrimary}}
+                          onClick={async () => {
+                            // Get user's loyalty tier for priority
+                            const userBookingsResult = await getUserBookings(user?.id);
+                            const completedCount = userBookingsResult.success 
+                              ? userBookingsResult.data.filter(b => b.status === 'confirmed' && new Date(b.date) < new Date()).length 
+                              : 0;
+                            
+                            let priority = 1;
+                            if (completedCount >= 20) priority = 4; // Platinum
+                            else if (completedCount >= 10) priority = 3; // Gold  
+                            else if (completedCount >= 5) priority = 2; // Silver
+                            
+                            const result = await addToWaitlist({
+                              userId: user?.id,
+                              studioId: bookingData.studioId,
+                              serviceId: bookingData.serviceId,
+                              date: bookingData.date,
+                              time: 'any',
+                              priority: priority
+                            });
+                            
+                            if (result.success) {
+                              setWaitlistAdded(true);
+                              alert('✅ Added to waitlist! We\'ll notify you via email when a slot opens up. Priority based on your loyalty tier.');
+                            } else {
+                              alert('Failed to add to waitlist: ' + result.error);
+                            }
+                          }}
+                        >
+                          📋 Join Waitlist
+                        </button>
+                      ) : (
+                        <div style={{
+                          padding: '12px',
+                          backgroundColor: '#d1fae5',
+                          borderRadius: '8px',
+                          color: '#166534',
+                          fontWeight: 'bold'
+                        }}>
+                          ✓ You're on the waitlist! We'll notify you when a slot opens.
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -2540,6 +3194,89 @@ const BookingFlow = ({ user, onNavigate }) => {
                   placeholder="Any special requirements or requests..."
                 />
               </div>
+
+              {/* Recurring Booking Options */}
+              <div style={{
+                backgroundColor: colors.gray50,
+                padding: '20px',
+                borderRadius: '12px',
+                marginTop: '24px',
+                border: `2px solid ${colors.gray200}`
+              }}>
+                <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px'}}>
+                  <input
+                    type="checkbox"
+                    id="isRecurring"
+                    checked={bookingData.isRecurring || false}
+                    onChange={(e) => updateBooking('isRecurring', e.target.checked)}
+                    style={{width: '20px', height: '20px', cursor: 'pointer'}}
+                  />
+                  <label htmlFor="isRecurring" style={{...styles.label, margin: 0, cursor: 'pointer', fontSize: '16px'}}>
+                    🔁 Make this a recurring booking
+                  </label>
+                </div>
+
+                {bookingData.isRecurring && (
+                  <>
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Frequency</label>
+                      <select
+                        value={bookingData.recurrenceFrequency || 'weekly'}
+                        onChange={(e) => updateBooking('recurrenceFrequency', e.target.value)}
+                        style={styles.input}
+                      >
+                        <option value="weekly">Weekly (Every 7 days)</option>
+                        <option value="biweekly">Bi-Weekly (Every 14 days)</option>
+                        <option value="monthly">Monthly</option>
+                      </select>
+                    </div>
+
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Number of Occurrences</label>
+                      <input
+                        type="number"
+                        min="2"
+                        max="52"
+                        value={bookingData.occurrences || 4}
+                        onChange={(e) => updateBooking('occurrences', parseInt(e.target.value))}
+                        style={styles.input}
+                        placeholder="4"
+                      />
+                      <p style={{fontSize: '12px', color: colors.gray500, marginTop: '4px'}}>
+                        Total sessions: {bookingData.occurrences || 4}
+                      </p>
+                    </div>
+
+                    <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginTop: '12px'}}>
+                      <input
+                        type="checkbox"
+                        id="autoRenewal"
+                        checked={bookingData.autoRenewal || false}
+                        onChange={(e) => updateBooking('autoRenewal', e.target.checked)}
+                        style={{width: '18px', height: '18px', cursor: 'pointer'}}
+                      />
+                      <label htmlFor="autoRenewal" style={{fontSize: '14px', cursor: 'pointer'}}>
+                        Enable auto-renewal (Priority booking for regulars)
+                      </label>
+                    </div>
+
+                    <div style={{
+                      marginTop: '16px',
+                      padding: '12px',
+                      backgroundColor: '#eff6ff',
+                      borderRadius: '8px',
+                      border: `1px solid #3b82f6`
+                    }}>
+                      <p style={{fontSize: '14px', color: colors.gray700, margin: 0, lineHeight: 1.6}}>
+                        💡 <strong>Recurring Booking Benefits:</strong><br/>
+                        • Guaranteed slot every {bookingData.recurrenceFrequency === 'weekly' ? 'week' : bookingData.recurrenceFrequency === 'biweekly' ? '2 weeks' : 'month'}<br/>
+                        • Priority booking access<br/>
+                        • 10% discount on total (Applied at checkout)
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
             </>
           )}
 
@@ -2565,9 +3302,31 @@ const BookingFlow = ({ user, onNavigate }) => {
                   <span style={styles.summaryLabel}>Duration:</span>
                   <span style={styles.summaryValue}>{selectedService?.duration} minutes</span>
                 </div>
+                {bookingData.isRecurring && (
+                  <>
+                    <div style={styles.summaryRow}>
+                      <span style={styles.summaryLabel}>Recurring:</span>
+                      <span style={styles.summaryValue}>
+                        {bookingData.recurrenceFrequency === 'weekly' ? 'Weekly' : bookingData.recurrenceFrequency === 'biweekly' ? 'Bi-Weekly' : 'Monthly'} × {bookingData.occurrences || 4} sessions
+                      </span>
+                    </div>
+                    <div style={styles.summaryRow}>
+                      <span style={styles.summaryLabel}>Subtotal:</span>
+                      <span style={styles.summaryValue}>R{selectedService?.price * (bookingData.occurrences || 4)}</span>
+                    </div>
+                    <div style={styles.summaryRow}>
+                      <span style={styles.summaryLabel}>Recurring Discount (10%):</span>
+                      <span style={{...styles.summaryValue, color: colors.red}}>-R{Math.round(selectedService?.price * (bookingData.occurrences || 4) * 0.1)}</span>
+                    </div>
+                  </>
+                )}
                 <div style={{...styles.summaryRow, borderTop: `1px solid ${colors.gray300}`, paddingTop: '16px', marginTop: '8px'}}>
                   <span style={styles.summaryLabel}>Total Price:</span>
-                  <span style={styles.summaryTotal}>R{selectedService?.price}</span>
+                  <span style={styles.summaryTotal}>
+                    R{bookingData.isRecurring 
+                      ? Math.round(selectedService?.price * (bookingData.occurrences || 4) * 0.9)
+                      : selectedService?.price}
+                  </span>
                 </div>
               </div>
               <div style={styles.summaryBox}>
@@ -2589,7 +3348,15 @@ const BookingFlow = ({ user, onNavigate }) => {
           {step < 5 ? (
             <button style={styles.btnPrimary} onClick={nextStep}>Next Step →</button>
           ) : (
-            <button style={styles.btnSecondary} onClick={submitBooking}>✓ Confirm Booking</button>
+            <button 
+              style={styles.btnSecondary} 
+              onClick={() => {
+                console.log('✓ Confirm Booking button clicked');
+                submitBooking();
+              }}
+            >
+              ✓ Confirm Booking
+            </button>
           )}
         </div>
       </div>
