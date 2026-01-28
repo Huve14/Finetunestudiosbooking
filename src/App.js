@@ -270,6 +270,7 @@ async function signupUser(email, password, name, phone) {
     // Persist profile in 'public_users' table with the auth user id (preferred for public users)
     const supabaseUserId = authData?.user?.id;
     if (supabaseUserId) {
+      console.log('Attempting to insert into public_users with id:', supabaseUserId);
       const { data: userData, error: userError } = await supabase
         .from('public_users')
         .insert([{
@@ -285,9 +286,10 @@ async function signupUser(email, password, name, phone) {
         .maybeSingle();
 
       if (userError) {
-        console.warn('public_users insert failed:', userError.message);
+        console.warn('public_users insert failed:', userError.message, userError);
         // fallback: try inserting into users table if necessary
         try {
+          console.log('Attempting fallback insert into users table');
           const { error: fallbackErr } = await supabase
             .from('users')
             .insert([{
@@ -303,12 +305,15 @@ async function signupUser(email, password, name, phone) {
 
           if (fallbackErr) {
             console.warn('users insert fallback failed:', fallbackErr.message);
+          } else {
+            console.log('Fallback insert to users succeeded');
           }
         } catch (e) {
           console.warn('users insert attempt threw:', e.message);
         }
 
-        // Return success since auth succeeded; user profile may be created later by setup-admin or RLS-enabled flow
+        // Return success since auth succeeded; user profile will be created on first login
+        console.log('Returning success despite profile insert failure - will create on login');
         return {
           success: true,
           user: {
@@ -324,7 +329,7 @@ async function signupUser(email, password, name, phone) {
       // If insert succeeded and returned a row, use it; otherwise fall back to auth id
       const finalUser = userData || { id: supabaseUserId, email, name, phone, role: 'user' };
 
-      console.log('Signup successful');
+      console.log('Signup successful, profile inserted:', finalUser);
       return {
         success: true,
         user: {
@@ -1700,9 +1705,36 @@ const BookingFlow = ({ user, onNavigate }) => {
   });
   const [confirmedBookings, setConfirmedBookings] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [monthlyBookings, setMonthlyBookings] = useState({});
 
   const updateBooking = (key, value) => {
     setBookingData(prev => ({ ...prev, [key]: value }));
+  };
+
+  // Load monthly bookings for calendar view
+  const loadMonthlyBookings = async (month, studioId) => {
+    if (!studioId) return;
+    const year = month.getFullYear();
+    const monthNum = month.getMonth();
+    const firstDay = new Date(year, monthNum, 1).toISOString().split('T')[0];
+    const lastDay = new Date(year, monthNum + 1, 0).toISOString().split('T')[0];
+    
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('date')
+      .eq('studio_id', studioId)
+      .gte('date', firstDay)
+      .lte('date', lastDay)
+      .in('status', ['confirmed', 'pending']);
+    
+    if (!error && data) {
+      const bookingCounts = {};
+      data.forEach(b => {
+        bookingCounts[b.date] = (bookingCounts[b.date] || 0) + 1;
+      });
+      setMonthlyBookings(bookingCounts);
+    }
   };
 
   const loadTimeSlots = async (date, studioId) => {
@@ -1714,6 +1746,12 @@ const BookingFlow = ({ user, onNavigate }) => {
     }
     setLoadingSlots(false);
   };
+
+  useEffect(() => {
+    if (bookingData.studioId && step === 3) {
+      loadMonthlyBookings(currentMonth, bookingData.studioId);
+    }
+  }, [bookingData.studioId, currentMonth, step]);
 
   useEffect(() => {
     if (bookingData.date && bookingData.studioId) {
@@ -1846,19 +1884,144 @@ const BookingFlow = ({ user, onNavigate }) => {
           {step === 3 && (
             <>
               <h2 style={styles.bookingTitle}>SELECT DATE & TIME</h2>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Date</label>
-                <input
-                  type="date"
-                  value={bookingData.date}
-                  onChange={(e) => {
-                    updateBooking('date', e.target.value);
-                    updateBooking('time', '');
-                  }}
-                  min={new Date().toISOString().split('T')[0]}
-                  style={styles.input}
-                />
+              
+              {/* Calendar View */}
+              <div style={{marginBottom: '32px'}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
+                  <button 
+                    onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
+                    style={{...styles.btnSecondary, padding: '8px 16px'}}
+                  >
+                    ← Prev
+                  </button>
+                  <h3 style={{fontSize: '20px', fontWeight: 'bold', letterSpacing: '1px'}}>
+                    {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </h3>
+                  <button 
+                    onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
+                    style={{...styles.btnSecondary, padding: '8px 16px'}}
+                  >
+                    Next →
+                  </button>
+                </div>
+
+                {/* Legend */}
+                <div style={{display: 'flex', gap: '16px', marginBottom: '16px', fontSize: '13px'}}>
+                  <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                    <div style={{width: '16px', height: '16px', backgroundColor: '#10b981', borderRadius: '4px'}}></div>
+                    <span>Available</span>
+                  </div>
+                  <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                    <div style={{width: '16px', height: '16px', backgroundColor: '#f59e0b', borderRadius: '4px'}}></div>
+                    <span>Limited</span>
+                  </div>
+                  <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                    <div style={{width: '16px', height: '16px', backgroundColor: '#ef4444', borderRadius: '4px'}}></div>
+                    <span>Full</span>
+                  </div>
+                </div>
+
+                {/* Calendar Grid */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(7, 1fr)',
+                  gap: '8px',
+                  marginBottom: '8px'
+                }}>
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                    <div key={day} style={{
+                      padding: '8px',
+                      textAlign: 'center',
+                      fontWeight: 'bold',
+                      fontSize: '14px',
+                      color: colors.gray600
+                    }}>
+                      {day}
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(7, 1fr)',
+                  gap: '8px'
+                }}>
+                  {(() => {
+                    const year = currentMonth.getFullYear();
+                    const month = currentMonth.getMonth();
+                    const firstDay = new Date(year, month, 1).getDay();
+                    const daysInMonth = new Date(year, month + 1, 0).getDate();
+                    const today = new Date().toISOString().split('T')[0];
+                    const days = [];
+
+                    // Empty cells for days before month starts
+                    for (let i = 0; i < firstDay; i++) {
+                      days.push(<div key={`empty-${i}`} style={{padding: '12px'}}></div>);
+                    }
+
+                    // Days of the month
+                    for (let day = 1; day <= daysInMonth; day++) {
+                      const date = new Date(year, month, day);
+                      const dateStr = date.toISOString().split('T')[0];
+                      const isPast = dateStr < today;
+                      const isSelected = bookingData.date === dateStr;
+                      const bookingCount = monthlyBookings[dateStr] || 0;
+                      
+                      // Color coding based on bookings (assuming 10 total slots per day)
+                      let bgColor = colors.white;
+                      let borderColor = colors.gray300;
+                      if (!isPast) {
+                        if (bookingCount >= 10) {
+                          bgColor = '#fee2e2'; // red - full
+                          borderColor = '#ef4444';
+                        } else if (bookingCount >= 7) {
+                          bgColor = '#fef3c7'; // yellow - limited
+                          borderColor = '#f59e0b';
+                        } else {
+                          bgColor = '#d1fae5'; // green - available
+                          borderColor = '#10b981';
+                        }
+                      }
+
+                      days.push(
+                        <button
+                          key={day}
+                          onClick={() => {
+                            if (!isPast) {
+                              updateBooking('date', dateStr);
+                              updateBooking('time', '');
+                            }
+                          }}
+                          disabled={isPast}
+                          style={{
+                            padding: '12px',
+                            textAlign: 'center',
+                            border: `2px solid ${isSelected ? colors.red : borderColor}`,
+                            borderRadius: '8px',
+                            backgroundColor: isSelected ? colors.red : bgColor,
+                            color: isPast ? colors.gray400 : isSelected ? colors.white : colors.black,
+                            cursor: isPast ? 'not-allowed' : 'pointer',
+                            fontWeight: isSelected ? 'bold' : 'normal',
+                            fontSize: '14px',
+                            transition: 'all 0.2s',
+                            opacity: isPast ? 0.4 : 1
+                          }}
+                        >
+                          <div>{day}</div>
+                          {!isPast && bookingCount > 0 && (
+                            <div style={{fontSize: '10px', marginTop: '2px'}}>
+                              {bookingCount >= 10 ? 'Full' : `${bookingCount}/${10}`}
+                            </div>
+                          )}
+                        </button>
+                      );
+                    }
+
+                    return days;
+                  })()}
+                </div>
               </div>
+
               {bookingData.date && (
                 <div style={{marginTop: '24px'}}>
                   <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '12px'}}>
