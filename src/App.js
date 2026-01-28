@@ -1198,7 +1198,14 @@ const Navigation = ({ currentPage, isAuthenticated, userRole, onNavigate, onLogo
           <button style={{...styles.navLink, color: colors.red}} onClick={() => onNavigate('login-admin')}>Admin</button>
         </>
       )}
-      <button style={styles.btnPrimary} onClick={() => onNavigate('book')}>Book Now</button>
+      <button style={styles.btnPrimary} onClick={() => {
+        if (!isAuthenticated) {
+          alert('Please log in to book a studio session');
+          onNavigate('login-user');
+        } else {
+          onNavigate('book');
+        }
+      }}>Book Now</button>
     </div>
   </nav>
 );
@@ -1692,6 +1699,14 @@ const AdminDashboard = ({ user, onNavigate, onLogout }) => {
 
 // Booking Flow
 const BookingFlow = ({ user, onNavigate }) => {
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!user) {
+      alert('Please log in to book a studio session');
+      onNavigate('login-user');
+    }
+  }, [user, onNavigate]);
+
   const [step, setStep] = useState(1);
   const [bookingData, setBookingData] = useState({
     studioId: '',
