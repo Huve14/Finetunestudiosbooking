@@ -1737,6 +1737,38 @@ const BookingFlow = ({ user, onNavigate }) => {
     }
   };
 
+  // Helper function to check if a time slot conflicts with existing bookings
+  const isSlotConflicting = (slotTime, existingBookings, selectedServiceDuration) => {
+    const slotMinutes = parseInt(slotTime.split(':')[0]) * 60 + parseInt(slotTime.split(':')[1]);
+    
+    for (const booking of existingBookings) {
+      if (booking.date !== bookingData.date) continue;
+      
+      const bookingStartMinutes = parseInt(booking.time.split(':')[0]) * 60 + parseInt(booking.time.split(':')[1]);
+      
+      // Find the service duration for this booking
+      const bookingService = services.find(s => s.id === booking.service_id);
+      const bookingDuration = bookingService?.duration || 60; // Default to 60 if not found
+      const bookingEndMinutes = bookingStartMinutes + bookingDuration;
+      
+      // Check if the slot overlaps with this booking
+      const slotEndMinutes = slotMinutes + selectedServiceDuration;
+      
+      // Two bookings conflict if:
+      // 1. The new slot starts during an existing booking
+      // 2. The new slot ends during an existing booking
+      // 3. The new slot completely encompasses an existing booking
+      if (
+        (slotMinutes >= bookingStartMinutes && slotMinutes < bookingEndMinutes) || // Slot starts during booking
+        (slotEndMinutes > bookingStartMinutes && slotEndMinutes <= bookingEndMinutes) || // Slot ends during booking
+        (slotMinutes <= bookingStartMinutes && slotEndMinutes >= bookingEndMinutes) // Slot encompasses booking
+      ) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   const loadTimeSlots = async (date, studioId) => {
     if (!date || !studioId) return;
     setLoadingSlots(true);
@@ -1791,9 +1823,15 @@ const BookingFlow = ({ user, onNavigate }) => {
     }
   };
 
-  const bookedSlots = confirmedBookings.filter(b => b.date === bookingData.date).map(b => b.time);
-  const selectedStudio = studios.find(s => s.id === bookingData.studioId);
+  // Calculate booked slots considering duration conflicts
   const selectedService = services.find(s => s.id === bookingData.serviceId);
+  const selectedServiceDuration = selectedService?.duration || 60;
+  
+  const bookedSlots = availableSlots.filter(slot => 
+    isSlotConflicting(slot, confirmedBookings, selectedServiceDuration)
+  );
+  
+  const selectedStudio = studios.find(s => s.id === bookingData.studioId);
 
   const stepLabels = ['Studio', 'Service', 'Time', 'Details', 'Confirm'];
 
