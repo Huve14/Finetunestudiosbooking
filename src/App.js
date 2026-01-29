@@ -1761,8 +1761,8 @@ const HomePage = ({ onNavigate }) => {
         <div style={{marginBottom: '32px', display: 'none'}}>
           <img src="/finetune-logo.svg" alt="Finetune Studios" style={{width: 'clamp(120px, 30vw, 180px)', height: 'auto', margin: '0 auto', display: 'block'}} />
         </div>
-        <div style={{marginBottom: '32px', display: 'flex', justifyContent: 'center'}}>
-          <img src="/animated-bars.svg" alt="Animated music waves" style={{width: 'clamp(200px, 50vw, 400px)', height: 'auto'}} />
+        <div style={{marginBottom: 'clamp(16px, 4vw, 32px)', display: 'flex', justifyContent: 'center', padding: '0 16px'}}>
+          <img src="/animated-bars.svg" alt="Animated music waves" style={{width: 'clamp(150px, 80vw, 400px)', height: 'auto', maxWidth: '100%'}} />
         </div>
         <h1 style={styles.heroTitle}>
           PROFESSIONAL<br />
