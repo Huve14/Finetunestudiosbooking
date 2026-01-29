@@ -745,19 +745,19 @@ const styles = {
     color: colors.white
   },
   navLogoIcon: {
-    width: '48px',
-    height: '48px',
+    width: 'clamp(40px, 10vw, 48px)',
+    height: 'clamp(40px, 10vw, 48px)',
     backgroundColor: colors.red,
     borderRadius: '8px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '24px'
+    fontSize: 'clamp(20px, 5vw, 24px)'
   },
   navLogoText: {
-    fontSize: '24px',
+    fontSize: 'clamp(16px, 4vw, 24px)',
     fontWeight: 'bold',
-    letterSpacing: '2px'
+    letterSpacing: 'clamp(1px, 0.5vw, 2px)'
   },
   navLinks: {
     display: 'flex',
@@ -956,7 +956,9 @@ const styles = {
     overflow: 'hidden',
     boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
     borderLeft: `4px solid ${colors.red}`,
-    transition: 'transform 0.3s, box-shadow 0.3s'
+    transition: 'transform 0.3s, box-shadow 0.3s',
+    display: 'flex',
+    flexDirection: 'column'
   },
   studioImage: {
     height: '200px',
@@ -1007,7 +1009,9 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingTop: '16px',
-    borderTop: `1px solid ${colors.gray200}`
+    borderTop: `1px solid ${colors.gray200}`,
+    flexWrap: 'wrap',
+    gap: '12px'
   },
   studioPrice: {
     fontSize: '28px',
@@ -1027,10 +1031,11 @@ const styles = {
   },
   footerGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    gap: '48px',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(250px, 100%), 1fr))',
+    gap: 'clamp(24px, 5vw, 48px)',
     maxWidth: '1200px',
-    margin: '0 auto 48px'
+    margin: '0 auto clamp(24px, 5vw, 48px)',
+    padding: '0 16px'
   },
   footerTitle: {
     fontSize: '18px',
@@ -1094,13 +1099,13 @@ const styles = {
   // Login
   loginContainer: {
     maxWidth: '400px',
-    margin: '60px auto',
-    padding: '0 24px'
+    margin: 'clamp(20px, 8vw, 60px) auto',
+    padding: '0 clamp(16px, 5vw, 24px)'
   },
   loginCard: {
     backgroundColor: colors.white,
     borderRadius: '16px',
-    padding: '40px',
+    padding: 'clamp(24px, 6vw, 40px)',
     boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
     borderTop: `4px solid ${colors.red}`
   },
@@ -1400,14 +1405,16 @@ const styles = {
   // Navigation Buttons
   navButtons: {
     display: 'flex',
-    justifyContent: 'space-between'
+    justifyContent: 'space-between',
+    gap: '12px',
+    flexWrap: 'wrap'
   },
   
   // Dashboard
   dashboardHeader: {
     backgroundColor: colors.black,
     color: colors.white,
-    padding: '16px 24px',
+    padding: 'clamp(12px, 3vw, 16px) clamp(16px, 4vw, 24px)',
     borderBottom: `4px solid ${colors.red}`
   },
   dashboardHeaderContent: {
@@ -1415,13 +1422,15 @@ const styles = {
     margin: '0 auto',
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'center'
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '12px'
   },
   statsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    gap: '24px',
-    marginBottom: '40px'
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(160px, 100%), 1fr))',
+    gap: 'clamp(12px, 3vw, 24px)',
+    marginBottom: 'clamp(24px, 5vw, 40px)'
   },
   statCard: {
     backgroundColor: colors.white,
@@ -1462,23 +1471,26 @@ const styles = {
   },
   table: {
     width: '100%',
-    borderCollapse: 'collapse'
+    borderCollapse: 'collapse',
+    minWidth: '600px'
   },
   tableHeader: {
     backgroundColor: colors.gray900,
     color: colors.white
   },
   th: {
-    padding: '16px',
+    padding: 'clamp(12px, 3vw, 16px)',
     textAlign: 'left',
-    fontSize: '12px',
+    fontSize: 'clamp(10px, 2.5vw, 12px)',
     fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: '1px'
+    letterSpacing: '1px',
+    whiteSpace: 'nowrap'
   },
   td: {
-    padding: '16px',
-    borderBottom: `1px solid ${colors.gray200}`
+    padding: 'clamp(12px, 3vw, 16px)',
+    borderBottom: `1px solid ${colors.gray200}`,
+    fontSize: 'clamp(13px, 3vw, 14px)'
   },
   statusBadge: {
     padding: '4px 12px',
@@ -1500,14 +1512,16 @@ const styles = {
   innerHeader: {
     backgroundColor: colors.black,
     color: colors.white,
-    padding: '16px 24px'
+    padding: 'clamp(12px, 3vw, 16px) clamp(16px, 4vw, 24px)'
   },
   innerHeaderContent: {
     maxWidth: '1200px',
     margin: '0 auto',
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'center'
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '12px'
   },
   backButton: {
     display: 'flex',
@@ -1517,28 +1531,33 @@ const styles = {
     border: 'none',
     color: colors.white,
     cursor: 'pointer',
-    fontSize: '14px',
+    fontSize: 'clamp(12px, 3vw, 14px)',
     fontWeight: '600',
-    textTransform: 'uppercase'
+    textTransform: 'uppercase',
+    padding: '8px',
+    minHeight: '44px'
   },
   
   // CTA Section
   ctaSection: {
     background: 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #2a0a0a 100%)',
     color: colors.white,
-    padding: '80px 24px',
+    padding: 'clamp(40px, 10vw, 80px) clamp(16px, 5vw, 24px)',
     textAlign: 'center'
   },
   ctaTitle: {
-    fontSize: '40px',
+    fontSize: 'clamp(28px, 6vw, 40px)',
     fontWeight: 'bold',
-    marginBottom: '24px',
-    letterSpacing: '2px'
+    marginBottom: 'clamp(16px, 4vw, 24px)',
+    letterSpacing: 'clamp(1px, 0.5vw, 2px)',
+    lineHeight: 1.2
   },
   ctaSubtitle: {
-    fontSize: '18px',
+    fontSize: 'clamp(16px, 4vw, 18px)',
     color: colors.gray400,
-    marginBottom: '40px'
+    marginBottom: 'clamp(24px, 6vw, 40px)',
+    lineHeight: 1.6,
+    padding: '0 16px'
   }
 };
 
@@ -1549,9 +1568,9 @@ const styles = {
 // Navigation
 const Navigation = ({ currentPage, isAuthenticated, userRole, onNavigate, onLogout, isMobile, mobileMenuOpen, setMobileMenuOpen }) => (
   <nav style={styles.nav}>
-    <button style={styles.navLogo} onClick={() => onNavigate('home')}>
+    <button style={styles.navLogo} onClick={() => { onNavigate('home'); setMobileMenuOpen(false); }}>
       <div style={styles.navLogoIcon}>🎵</div>
-      <span style={{...styles.navLogoText, ...(isMobile && {fontSize: '18px'})}}>FINETUNE STUDIOS</span>
+      <span style={styles.navLogoText}>FINETUNE STUDIOS</span>
     </button>
     
     {/* Hamburger Menu Button */}
@@ -1573,15 +1592,15 @@ const Navigation = ({ currentPage, isAuthenticated, userRole, onNavigate, onLogo
       ...(isMobile && {
         display: mobileMenuOpen ? 'flex' : 'none',
         position: 'fixed',
-        top: '80px',
+        top: 'clamp(64px, 15vw, 80px)',
         left: 0,
         right: 0,
         backgroundColor: colors.black,
         flexDirection: 'column',
-        padding: '24px',
-        gap: '16px',
+        padding: 'clamp(16px, 4vw, 24px)',
+        gap: 'clamp(12px, 3vw, 16px)',
         borderTop: `1px solid ${colors.gray800}`,
-        maxHeight: 'calc(100vh - 80px)',
+        maxHeight: 'calc(100vh - clamp(64px, 15vw, 80px))',
         overflowY: 'auto',
         zIndex: 999
       })
@@ -2060,7 +2079,7 @@ const AdminDashboard = ({ user, onNavigate, onLogout }) => {
           {loading ? (
             <div style={{padding: '48px', textAlign: 'center', color: colors.gray500}}>Loading bookings...</div>
           ) : (
-            <div style={{overflowX: 'auto'}}>
+            <div style={{overflowX: 'auto', WebkitOverflowScrolling: 'touch'}}>
               <table style={styles.table}>
                 <thead style={styles.tableHeader}>
                   <tr>
@@ -2079,7 +2098,7 @@ const AdminDashboard = ({ user, onNavigate, onLogout }) => {
                       <td style={styles.td}><strong style={{fontFamily: 'monospace'}}>{b.booking_number}</strong></td>
                       <td style={styles.td}>
                         <div style={{fontWeight: '600'}}>{b.client_name}</div>
-                        <div style={{fontSize: '12px', color: colors.gray500}}>{b.client_email}</div>
+                        <div style={{fontSize: 'clamp(11px, 2.5vw, 12px)', color: colors.gray500}}>{b.client_email}</div>
                       </td>
                       <td style={styles.td}>{studios.find(s => s.id === b.studio_id)?.name || b.studio_id}</td>
                       <td style={styles.td}>{services.find(s => s.id === b.service_id)?.name || b.service_id}</td>
@@ -2902,36 +2921,36 @@ const BookingFlow = ({ user, onNavigate }) => {
               
               {/* Calendar View */}
               <div style={{marginBottom: '32px'}}>
-                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', gap: '8px', flexWrap: 'wrap'}}>
                   <button 
                     onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
-                    style={{...styles.btnSecondary, padding: '8px 16px'}}
+                    style={{...styles.btnSecondary, padding: 'clamp(8px, 2vw, 8px) clamp(12px, 3vw, 16px)', fontSize: 'clamp(12px, 3vw, 14px)', minHeight: '44px'}}
                   >
                     ← Prev
                   </button>
-                  <h3 style={{fontSize: '20px', fontWeight: 'bold', letterSpacing: '1px'}}>
+                  <h3 style={{fontSize: 'clamp(16px, 4vw, 20px)', fontWeight: 'bold', letterSpacing: '1px', textAlign: 'center', flex: '1 1 auto'}}>
                     {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                   </h3>
                   <button 
                     onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
-                    style={{...styles.btnSecondary, padding: '8px 16px'}}
+                    style={{...styles.btnSecondary, padding: 'clamp(8px, 2vw, 8px) clamp(12px, 3vw, 16px)', fontSize: 'clamp(12px, 3vw, 14px)', minHeight: '44px'}}
                   >
                     Next →
                   </button>
                 </div>
 
                 {/* Legend */}
-                <div style={{display: 'flex', gap: '16px', marginBottom: '16px', fontSize: '13px'}}>
+                <div style={{display: 'flex', gap: 'clamp(8px, 2vw, 16px)', marginBottom: '16px', fontSize: 'clamp(11px, 2.5vw, 13px)', flexWrap: 'wrap', justifyContent: 'center'}}>
                   <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
-                    <div style={{width: '16px', height: '16px', backgroundColor: '#10b981', borderRadius: '4px'}}></div>
+                    <div style={{width: 'clamp(14px, 3.5vw, 16px)', height: 'clamp(14px, 3.5vw, 16px)', backgroundColor: '#10b981', borderRadius: '4px'}}></div>
                     <span>Available</span>
                   </div>
                   <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
-                    <div style={{width: '16px', height: '16px', backgroundColor: '#f59e0b', borderRadius: '4px'}}></div>
+                    <div style={{width: 'clamp(14px, 3.5vw, 16px)', height: 'clamp(14px, 3.5vw, 16px)', backgroundColor: '#f59e0b', borderRadius: '4px'}}></div>
                     <span>Limited</span>
                   </div>
                   <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
-                    <div style={{width: '16px', height: '16px', backgroundColor: '#ef4444', borderRadius: '4px'}}></div>
+                    <div style={{width: 'clamp(14px, 3.5vw, 16px)', height: 'clamp(14px, 3.5vw, 16px)', backgroundColor: '#ef4444', borderRadius: '4px'}}></div>
                     <span>Full</span>
                   </div>
                 </div>
@@ -2940,15 +2959,15 @@ const BookingFlow = ({ user, onNavigate }) => {
                 <div style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(7, 1fr)',
-                  gap: '8px',
+                  gap: 'clamp(4px, 1vw, 8px)',
                   marginBottom: '8px'
                 }}>
                   {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
                     <div key={day} style={{
-                      padding: '8px',
+                      padding: 'clamp(4px, 1.5vw, 8px)',
                       textAlign: 'center',
                       fontWeight: 'bold',
-                      fontSize: '14px',
+                      fontSize: 'clamp(11px, 2.5vw, 14px)',
                       color: colors.gray600
                     }}>
                       {day}
@@ -2959,7 +2978,7 @@ const BookingFlow = ({ user, onNavigate }) => {
                 <div style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(7, 1fr)',
-                  gap: '8px'
+                  gap: 'clamp(4px, 1vw, 8px)'
                 }}>
                   {(() => {
                     const year = currentMonth.getFullYear();
@@ -2971,62 +2990,65 @@ const BookingFlow = ({ user, onNavigate }) => {
 
                     // Empty cells for days before month starts
                     for (let i = 0; i < firstDay; i++) {
-                      days.push(<div key={`empty-${i}`} style={{padding: '12px'}}></div>);
-                    }
-
-                    // Days of the month
-                    for (let day = 1; day <= daysInMonth; day++) {
-                      const date = new Date(year, month, day);
-                      const dateStr = date.toISOString().split('T')[0];
-                      const isPast = dateStr < today;
-                      const isSelected = bookingData.date === dateStr;
-                      const bookingCount = monthlyBookings[dateStr] || 0;
-                      
-                      // Color coding based on bookings (assuming 10 total slots per day)
-                      let bgColor = colors.white;
-                      let borderColor = colors.gray300;
-                      if (!isPast) {
-                        if (bookingCount >= 10) {
-                          bgColor = '#fee2e2'; // red - full
-                          borderColor = '#ef4444';
-                        } else if (bookingCount >= 7) {
-                          bgColor = '#fef3c7'; // yellow - limited
-                          borderColor = '#f59e0b';
-                        } else {
-                          bgColor = '#d1fae5'; // green - available
-                          borderColor = '#10b981';
-                        }
+                        days.push(<div key={`empty-${i}`} style={{padding: 'clamp(8px, 2vw, 12px)'}}></div>);
                       }
 
-                      days.push(
-                        <button
-                          key={day}
-                          onClick={() => {
-                            if (!isPast) {
-                              updateBooking('date', dateStr);
-                              updateBooking('time', '');
-                            }
-                          }}
-                          disabled={isPast}
-                          style={{
-                            padding: '12px',
-                            textAlign: 'center',
-                            border: `2px solid ${isSelected ? colors.red : borderColor}`,
-                            borderRadius: '8px',
-                            backgroundColor: isSelected ? colors.red : bgColor,
-                            color: isPast ? colors.gray400 : isSelected ? colors.white : colors.black,
-                            cursor: isPast ? 'not-allowed' : 'pointer',
-                            fontWeight: isSelected ? 'bold' : 'normal',
-                            fontSize: '14px',
-                            transition: 'all 0.2s',
-                            opacity: isPast ? 0.4 : 1
-                          }}
-                        >
-                          <div>{day}</div>
-                          {!isPast && bookingCount > 0 && (
-                            <div style={{fontSize: '10px', marginTop: '2px'}}>
-                              {bookingCount >= 10 ? 'Full' : `${bookingCount}/${10}`}
-                            </div>
+                      // Days of the month
+                      for (let day = 1; day <= daysInMonth; day++) {
+                        const date = new Date(year, month, day);
+                        const dateStr = date.toISOString().split('T')[0];
+                        const isPast = dateStr < today;
+                        const isSelected = bookingData.date === dateStr;
+                        const bookingCount = monthlyBookings[dateStr] || 0;
+                        
+                        // Color coding based on bookings (assuming 10 total slots per day)
+                        let bgColor = colors.white;
+                        let borderColor = colors.gray300;
+                        if (!isPast) {
+                          if (bookingCount >= 10) {
+                            bgColor = '#fee2e2'; // red - full
+                            borderColor = '#ef4444';
+                          } else if (bookingCount >= 7) {
+                            bgColor = '#fef3c7'; // yellow - limited
+                            borderColor = '#f59e0b';
+                          } else {
+                            bgColor = '#d1fae5'; // green - available
+                            borderColor = '#10b981';
+                          }
+                        }
+
+                        days.push(
+                          <button
+                            key={day}
+                            onClick={() => {
+                              if (!isPast) {
+                                updateBooking('date', dateStr);
+                                updateBooking('time', '');
+                              }
+                            }}
+                            disabled={isPast}
+                            style={{
+                              padding: 'clamp(8px, 2vw, 12px)',
+                              textAlign: 'center',
+                              border: `2px solid ${isSelected ? colors.red : borderColor}`,
+                              borderRadius: 'clamp(4px, 1.5vw, 8px)',
+                              backgroundColor: isSelected ? colors.red : bgColor,
+                              color: isPast ? colors.gray400 : isSelected ? colors.white : colors.black,
+                              cursor: isPast ? 'not-allowed' : 'pointer',
+                              fontWeight: isSelected ? 'bold' : 'normal',
+                              fontSize: 'clamp(12px, 3vw, 14px)',
+                              transition: 'all 0.2s',
+                              opacity: isPast ? 0.4 : 1,
+                              minHeight: 'clamp(36px, 8vw, 44px)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            <div>{day}</div>
+                            {!isPast && bookingCount > 0 && (
+                              <div style={{fontSize: 'clamp(8px, 2vw, 10px)', marginTop: '2px'}}>
                           )}
                         </button>
                       );
@@ -3368,29 +3390,37 @@ const BookingFlow = ({ user, onNavigate }) => {
 const StudiosPage = ({ onNavigate }) => (
   <div style={styles.page}>
     <section style={styles.hero}>
-      <h1 style={{...styles.heroTitle, fontSize: '48px'}}>OUR STUDIOS</h1>
+      <h1 style={styles.heroTitle}>OUR STUDIOS</h1>
       <p style={styles.heroSubtitle}>Four world-class recording environments designed for every creative need</p>
     </section>
     <section style={styles.section}>
       <div style={{display: 'flex', flexDirection: 'column', gap: '32px'}}>
         {studios.map(studio => (
-          <div key={studio.id} style={{...styles.studioCard, display: 'flex', flexDirection: 'row'}}>
-            <div style={{...styles.studioImage, width: '300px', minHeight: '250px'}}>{studio.image}</div>
+          <div key={studio.id} style={{
+            ...styles.studioCard, 
+            display: 'flex', 
+            flexDirection: window.innerWidth <= 768 ? 'column' : 'row'
+          }}>
+            <div style={{
+              ...styles.studioImage, 
+              width: window.innerWidth <= 768 ? '100%' : '300px', 
+              minHeight: window.innerWidth <= 768 ? '200px' : '250px'
+            }}>{studio.image}</div>
             <div style={{...styles.studioContent, flex: 1}}>
-              <h2 style={{...styles.studioName, fontSize: '28px'}}>{studio.name}</h2>
-              <p style={{...styles.studioDesc, fontSize: '16px'}}>{studio.description}</p>
+              <h2 style={{...styles.studioName, fontSize: 'clamp(20px, 5vw, 28px)'}}>{studio.name}</h2>
+              <p style={{...styles.studioDesc, fontSize: 'clamp(14px, 3.5vw, 16px)'}}>{studio.description}</p>
               <div style={styles.studioFeatures}>
                 {studio.features.map((feature, i) => (
                   <span key={i} style={styles.studioFeatureTag}>{feature}</span>
                 ))}
               </div>
-              <div style={styles.studioMeta}>
+              <div style={{...styles.studioMeta, flexWrap: 'wrap'}}>
                 <span>👥 Up to {studio.capacity} people</span>
                 <span>📍 {studio.location}</span>
               </div>
               <div style={styles.studioFooter}>
-                <span style={{...styles.studioPrice, fontSize: '36px'}}>R{studio.hourlyRate}<span style={styles.studioPriceUnit}>/hour</span></span>
-                <button style={styles.btnPrimary} onClick={() => onNavigate('book')}>Book This Studio</button>
+                <span style={{...styles.studioPrice, fontSize: 'clamp(24px, 6vw, 36px)'}}>R{studio.hourlyRate}<span style={styles.studioPriceUnit}>/hour</span></span>
+                <button style={{...styles.btnPrimary, fontSize: 'clamp(12px, 3vw, 14px)', padding: 'clamp(12px, 3vw, 14px) clamp(20px, 5vw, 28px)'}} onClick={() => onNavigate('book')}>Book This Studio</button>
               </div>
             </div>
           </div>
