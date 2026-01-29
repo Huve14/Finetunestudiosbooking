@@ -1,0 +1,53 @@
+<svg viewBox="0 0 512 320" xmlns="http://www.w3.org/2000/svg">
+  <!-- Audio wave pattern -->
+  <g fill="#dc2626">
+    <!-- Left side waves -->
+    <rect x="88" y="175" width="24" height="40" rx="4"/>
+    <rect x="88" y="145" width="24" height="20" rx="4"/>
+    <rect x="88" y="135" width="24" height="10" rx="4"/>
+    
+    <rect x="120" y="165" width="24" height="50" rx="4"/>
+    <rect x="120" y="140" width="24" height="25" rx="4"/>
+    <rect x="120" y="127" width="24" height="13" rx="4"/>
+    <rect x="120" y="215" width="24" height="30" rx="4"/>
+    
+    <rect x="152" y="185" width="24" height="30" rx="4"/>
+    <rect x="152" y="170" width="24" height="15" rx="4"/>
+    
+    <!-- Center-left waves -->
+    <rect x="184" y="175" width="24" height="40" rx="4"/>
+    <rect x="184" y="155" width="24" height="20" rx="4"/>
+    <rect x="184" y="215" width="24" height="30" rx="4"/>
+    
+    <rect x="216" y="160" width="24" height="55" rx="4"/>
+    <rect x="216" y="140" width="24" height="20" rx="4"/>
+    <rect x="216" y="225" width="24" height="30" rx="4"/>
+    
+    <!-- Center waves -->
+    <rect x="248" y="165" width="24" height="50" rx="4"/>
+    <rect x="248" y="145" width="24" height="20" rx="4"/>
+    
+    <rect x="280" y="155" width="24" height="60" rx="4"/>
+    <rect x="280" y="130" width="24" height="25" rx="4"/>
+    <rect x="280" y="220" width="24" height="30" rx="4"/>
+    
+    <!-- Center-right waves -->
+    <rect x="312" y="170" width="24" height="45" rx="4"/>
+    <rect x="312" y="150" width="24" height="20" rx="4"/>
+    <rect x="312" y="220" width="24" height="30" rx="4"/>
+    
+    <rect x="344" y="175" width="24" height="40" rx="4"/>
+    <rect x="344" y="160" width="24" height="15" rx="4"/>
+    
+    <!-- Right side waves -->
+    <rect x="376" y="165" width="24" height="50" rx="4"/>
+    <rect x="376" y="140" width="24" height="25" rx="4"/>
+    <rect x="376" y="215" width="24" height="30" rx="4"/>
+    
+    <rect x="408" y="185" width="24" height="30" rx="4"/>
+    <rect x="408" y="170" width="24" height="15" rx="4"/>
+  </g>
+  
+  <!-- Text "finetune" -->
+  <text x="256" y="280" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#dc2626" text-anchor="middle" letter-spacing="2">finetune</text>
+</svg>

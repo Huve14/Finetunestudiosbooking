@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { registerServiceWorker, isStandaloneMode, requestInstall, setupOnlineOfflineListeners } from './pwaUtils';
+import { registerServiceWorker, requestInstall, setupOnlineOfflineListeners } from './pwaUtils';
 
 // ============================================================
 // SUPABASE CONFIGURATION
@@ -1588,8 +1588,7 @@ const Navigation = ({ currentPage, isAuthenticated, userRole, onNavigate, onLogo
       </div>
     )}
     <button style={{...styles.navLogo, ...(isOnline ? {} : {marginTop: '32px'})}} onClick={() => { onNavigate('home'); setMobileMenuOpen(false); }}>
-      <div style={styles.navLogoIcon}>🎵</div>
-      <span style={styles.navLogoText}>FINETUNE STUDIOS</span>
+      <img src="/finetune-logo.svg" alt="Finetune Studios Logo" style={{width: 'clamp(40px, 10vw, 48px)', height: 'clamp(40px, 10vw, 48px)'}} />
     </button>
     
     {/* Hamburger Menu Button */}
@@ -1662,8 +1661,7 @@ const Footer = () => (
     <div style={styles.footerGrid}>
       <div>
         <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px'}}>
-          <div style={{...styles.navLogoIcon, width: '56px', height: '56px', fontSize: '28px'}}>🎵</div>
-          <span style={{fontSize: '24px', fontWeight: 'bold', letterSpacing: '2px'}}>FINETUNE STUDIOS</span>
+          <img src="/finetune-logo.svg" alt="Finetune Studios" style={{width: '56px', height: '56px'}} />
         </div>
         <p style={styles.footerText}>
           Professional recording facilities in the heart of Bryanston, Sandton. 
@@ -1760,6 +1758,9 @@ const HomePage = ({ onNavigate }) => {
       )}
       {/* Hero */}
       <section style={styles.hero}>
+        <div style={{marginBottom: '32px'}}>
+          <img src="/finetune-logo.svg" alt="Finetune Studios" style={{width: 'clamp(80px, 20vw, 120px)', height: 'auto', margin: '0 auto', display: 'block'}} />
+        </div>
         <h1 style={styles.heroTitle}>
           PROFESSIONAL<br />
           <span style={{color: colors.red}}>RECORDING</span> STUDIOS
@@ -1859,9 +1860,8 @@ const LoginPage = ({ isAdmin, onLogin, onNavigate }) => {
       <header style={styles.innerHeader}>
         <div style={styles.innerHeaderContent}>
           <button style={styles.backButton} onClick={() => onNavigate('home')}>← Back to Home</button>
-          <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-            <span style={{fontSize: '24px'}}>🎵</span>
-            <span style={{fontSize: '20px', fontWeight: 'bold', letterSpacing: '2px'}}>FINETUNE STUDIOS</span>
+          <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+            <img src="/finetune-logo.svg" alt="Finetune Studios" style={{width: '40px', height: '40px'}} />
           </div>
         </div>
       </header>
@@ -1974,9 +1974,8 @@ const SignupPage = ({ onSignup, onNavigate }) => {
       <header style={styles.innerHeader}>
         <div style={styles.innerHeaderContent}>
           <button style={styles.backButton} onClick={() => onNavigate('home')}>← Back to Home</button>
-          <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-            <span style={{fontSize: '24px'}}>🎵</span>
-            <span style={{fontSize: '20px', fontWeight: 'bold', letterSpacing: '2px'}}>FINETUNE STUDIOS</span>
+          <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+            <img src="/finetune-logo.svg" alt="Finetune Studios" style={{width: '40px', height: '40px'}} />
           </div>
         </div>
       </header>
@@ -2126,7 +2125,7 @@ const AdminDashboard = ({ user, onNavigate, onLogout }) => {
       <header style={styles.dashboardHeader}>
         <div style={styles.dashboardHeaderContent}>
           <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-            <span style={{fontSize: '24px'}}>🎵</span>
+            <img src="/finetune-logo.svg" alt="Finetune Studios" style={{width: '40px', height: '40px'}} />
             <span style={{fontSize: '20px', fontWeight: 'bold', letterSpacing: '2px'}}>FINETUNE STUDIOS - ADMIN</span>
           </div>
           <div style={{display: 'flex', alignItems: 'center', gap: '24px'}}>
@@ -2880,9 +2879,8 @@ const BookingFlow = ({ user, onNavigate }) => {
       <header style={styles.innerHeader}>
         <div style={styles.innerHeaderContent}>
           <button style={styles.backButton} onClick={() => onNavigate('home')}>← Back to Home</button>
-          <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-            <span style={{fontSize: '24px'}}>🎵</span>
-            <span style={{fontSize: '20px', fontWeight: 'bold', letterSpacing: '2px'}}>FINETUNE STUDIOS</span>
+          <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+            <img src="/finetune-logo.svg" alt="Finetune Studios" style={{width: '40px', height: '40px'}} />
           </div>
         </div>
       </header>
