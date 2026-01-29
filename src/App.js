@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { registerServiceWorker, isStandaloneMode, requestInstall, setupOnlineOfflineListeners } from './pwaUtils';
 
 // ============================================================
 // SUPABASE CONFIGURATION
@@ -1566,9 +1567,27 @@ const styles = {
 // ============================================================
 
 // Navigation
-const Navigation = ({ currentPage, isAuthenticated, userRole, onNavigate, onLogout, isMobile, mobileMenuOpen, setMobileMenuOpen }) => (
+const Navigation = ({ currentPage, isAuthenticated, userRole, onNavigate, onLogout, isMobile, mobileMenuOpen, setMobileMenuOpen, isOnline }) => (
   <nav style={styles.nav}>
-    <button style={styles.navLogo} onClick={() => { onNavigate('home'); setMobileMenuOpen(false); }}>
+    {/* Offline Indicator */}
+    {!isOnline && (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: '#ef4444',
+        color: 'white',
+        padding: '8px 16px',
+        textAlign: 'center',
+        fontSize: '14px',
+        fontWeight: '600',
+        zIndex: 2000
+      }}>
+        📡 You are offline - Some features may not work
+      </div>
+    )}
+    <button style={{...styles.navLogo, ...(isOnline ? {} : {marginTop: '32px'})}} onClick={() => { onNavigate('home'); setMobileMenuOpen(false); }}>
       <div style={styles.navLogoIcon}>🎵</div>
       <span style={styles.navLogoText}>FINETUNE STUDIOS</span>
     </button>
@@ -1673,6 +1692,31 @@ const Footer = () => (
 
 // Home Page
 const HomePage = ({ onNavigate }) => {
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallPrompt(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User response: ${outcome}`);
+    
+    setDeferredPrompt(null);
+    setShowInstallPrompt(false);
+  };
+
   const features = [
     { icon: '🎤', title: 'Premium Equipment', desc: 'State-of-the-art recording gear and instruments from industry-leading brands' },
     { icon: '👥', title: 'Expert Engineers', desc: 'Grammy-nominated audio professionals ready to bring your vision to life' },
@@ -1682,6 +1726,38 @@ const HomePage = ({ onNavigate }) => {
 
   return (
     <div style={styles.page}>
+      {/* Install PWA Banner */}
+      {showInstallPrompt && (
+        <div style={{
+          backgroundColor: colors.red,
+          color: colors.white,
+          padding: '16px 24px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '16px',
+          flexWrap: 'wrap'
+        }}>
+          <div>
+            <strong>📱 Install Finetune Studios</strong>
+            <p style={{margin: '4px 0 0 0', fontSize: '14px'}}>Access the app directly from your home screen</p>
+          </div>
+          <div style={{display: 'flex', gap: '12px', flexWrap: 'wrap'}}>
+            <button 
+              onClick={handleInstallClick}
+              style={{...styles.btnPrimary, backgroundColor: colors.white, color: colors.red, fontSize: '14px', padding: '10px 20px', minHeight: 'auto'}}
+            >
+              Install
+            </button>
+            <button 
+              onClick={() => setShowInstallPrompt(false)}
+              style={{...styles.btnOutline, borderColor: colors.white, color: colors.white, fontSize: '14px', padding: '10px 20px', minHeight: 'auto'}}
+            >
+              Not Now
+            </button>
+          </div>
+        </div>
+      )}
       {/* Hero */}
       <section style={styles.hero}>
         <h1 style={styles.heroTitle}>
@@ -3442,6 +3518,19 @@ export default function FinetuneStudios() {
   const [currentUser, setCurrentUser] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  // Initialize PWA on mount
+  useEffect(() => {
+    // Register service worker
+    registerServiceWorker();
+    
+    // Request PWA install prompt
+    requestInstall();
+    
+    // Setup online/offline listeners
+    setupOnlineOfflineListeners(setIsOnline);
+  }, []);
 
   // Handle window resize for responsive design
   useEffect(() => {
@@ -3490,6 +3579,7 @@ export default function FinetuneStudios() {
           isMobile={isMobile}
           mobileMenuOpen={mobileMenuOpen}
           setMobileMenuOpen={setMobileMenuOpen}
+          isOnline={isOnline}
         />
       )}
 
