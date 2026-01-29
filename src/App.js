@@ -904,9 +904,9 @@ const styles = {
   // Cards Grid
   grid2: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(4, 1fr)', // 4 columns on desktop
-    gap: 'clamp(12px, 3vw, 24px)',
-    maxWidth: '1400px',
+    gridTemplateColumns: 'repeat(4, 1fr)', // 4 columns on desktop (single row)
+    gap: 'clamp(14px, 3vw, 24px)',
+    maxWidth: '1720px',
     margin: '0 auto'
   },
   '@media (max-width: 1200px)': {
@@ -970,30 +970,40 @@ const styles = {
     transition: 'transform 0.3s, box-shadow 0.3s',
     display: 'flex',
     flexDirection: 'column',
-    height: '100%' // Ensure equal height cards
+    height: '100%',
+    minHeight: '280px' // Match feature card proportions
   },
   studioImage: {
-    height: 'clamp(150px, 20vw, 200px)', // Responsive image height
+    height: '200px', // Increased height for more visual presence
     background: 'linear-gradient(145deg, #1a1a1a 0%, #2d0a0a 100%)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: 'clamp(60px, 8vw, 80px)' // Responsive icon size
+    fontSize: '72px' // Larger icon for bigger space
   },
   studioContent: {
-    padding: '24px'
+    padding: '24px',
+    flex: 1, // Allow content to grow and fill space
+    display: 'flex',
+    flexDirection: 'column'
   },
   studioName: {
     fontSize: '22px',
     fontWeight: 'bold',
     marginBottom: '12px',
-    letterSpacing: '1px'
+    letterSpacing: '1px',
+    minHeight: '52px' // Align titles across cards
   },
   studioDesc: {
     color: colors.gray600,
     marginBottom: '16px',
     fontSize: '14px',
-    lineHeight: 1.6
+    lineHeight: 1.6,
+    minHeight: '72px',
+    display: '-webkit-box',
+    WebkitLineClamp: 3,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden'
   },
   studioFeatures: {
     display: 'flex',
@@ -1023,7 +1033,8 @@ const styles = {
     paddingTop: '16px',
     borderTop: `1px solid ${colors.gray200}`,
     flexWrap: 'wrap',
-    gap: '12px'
+    gap: '12px',
+    marginTop: 'auto'
   },
   studioPrice: {
     fontSize: '28px',
