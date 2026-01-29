@@ -904,10 +904,20 @@ const styles = {
   // Cards Grid
   grid2: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', // Mobile-friendly
-    gap: 'clamp(16px, 4vw, 32px)',
-    maxWidth: '1200px',
+    gridTemplateColumns: 'repeat(4, 1fr)', // 4 columns on desktop
+    gap: 'clamp(12px, 3vw, 24px)',
+    maxWidth: '1400px',
     margin: '0 auto'
+  },
+  '@media (max-width: 1200px)': {
+    grid2: {
+      gridTemplateColumns: 'repeat(2, 1fr)' // 2 columns on tablet
+    }
+  },
+  '@media (max-width: 768px)': {
+    grid2: {
+      gridTemplateColumns: '1fr' // 1 column on mobile
+    }
   },
   grid4: {
     display: 'grid',
@@ -959,15 +969,16 @@ const styles = {
     borderLeft: `4px solid ${colors.red}`,
     transition: 'transform 0.3s, box-shadow 0.3s',
     display: 'flex',
-    flexDirection: 'column'
+    flexDirection: 'column',
+    height: '100%' // Ensure equal height cards
   },
   studioImage: {
-    height: '200px',
+    height: 'clamp(150px, 20vw, 200px)', // Responsive image height
     background: 'linear-gradient(145deg, #1a1a1a 0%, #2d0a0a 100%)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '80px'
+    fontSize: 'clamp(60px, 8vw, 80px)' // Responsive icon size
   },
   studioContent: {
     padding: '24px'
