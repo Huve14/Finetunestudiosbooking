@@ -1758,8 +1758,11 @@ const HomePage = ({ onNavigate }) => {
       )}
       {/* Hero */}
       <section style={styles.hero}>
-        <div style={{marginBottom: '32px'}}>
+        <div style={{marginBottom: '32px', display: 'none'}}>
           <img src="/finetune-logo.svg" alt="Finetune Studios" style={{width: 'clamp(120px, 30vw, 180px)', height: 'auto', margin: '0 auto', display: 'block'}} />
+        </div>
+        <div style={{marginBottom: '32px', display: 'flex', justifyContent: 'center'}}>
+          <img src="/animated-bars.svg" alt="Animated music waves" style={{width: 'clamp(200px, 50vw, 400px)', height: 'auto'}} />
         </div>
         <h1 style={styles.heroTitle}>
           PROFESSIONAL<br />

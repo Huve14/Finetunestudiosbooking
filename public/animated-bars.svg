@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200">
+<defs>
+<style>
+@keyframes wave1 { 0%, 100% { transform: scaleY(0.4); } 50% { transform: scaleY(1); } }
+@keyframes wave2 { 0%, 100% { transform: scaleY(0.5); } 50% { transform: scaleY(1); } }
+@keyframes wave3 { 0%, 100% { transform: scaleY(0.6); } 50% { transform: scaleY(1); } }
+@keyframes wave4 { 0%, 100% { transform: scaleY(0.7); } 50% { transform: scaleY(1); } }
+@keyframes wave5 { 0%, 100% { transform: scaleY(0.8); } 50% { transform: scaleY(1); } }
+.bar { transform-origin: bottom; animation-duration: 0.8s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+.bar1 { animation-name: wave1; animation-delay: 0s; }
+.bar2 { animation-name: wave2; animation-delay: 0.15s; }
+.bar3 { animation-name: wave3; animation-delay: 0.3s; }
+.bar4 { animation-name: wave4; animation-delay: 0.15s; }
+.bar5 { animation-name: wave5; animation-delay: 0s; }
+</style>
+</defs>
+<g class="bar bar1">
+  <rect x="40" y="60" width="40" height="120" fill="#ED2028" rx="4"/>
+</g>
+<g class="bar bar2">
+  <rect x="100" y="40" width="40" height="140" fill="#ED2028" rx="4"/>
+</g>
+<g class="bar bar3">
+  <rect x="160" y="20" width="40" height="160" fill="#ED2028" rx="4"/>
+</g>
+<g class="bar bar4">
+  <rect x="220" y="40" width="40" height="140" fill="#ED2028" rx="4"/>
+</g>
+<g class="bar bar5">
+  <rect x="280" y="60" width="40" height="120" fill="#ED2028" rx="4"/>
+</g>
+</svg>
