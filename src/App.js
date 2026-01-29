@@ -3049,10 +3049,12 @@ const BookingFlow = ({ user, onNavigate }) => {
                             <div>{day}</div>
                             {!isPast && bookingCount > 0 && (
                               <div style={{fontSize: 'clamp(8px, 2vw, 10px)', marginTop: '2px'}}>
-                          )}
-                        </button>
-                      );
-                    }
+                                {bookingCount >= 10 ? 'Full' : `${bookingCount}/${10}`}
+                              </div>
+                            )}
+                          </button>
+                        );
+                      }
 
                     return days;
                   })()}
