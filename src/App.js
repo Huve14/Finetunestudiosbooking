@@ -1588,7 +1588,7 @@ const Navigation = ({ currentPage, isAuthenticated, userRole, onNavigate, onLogo
       </div>
     )}
     <button style={{...styles.navLogo, ...(isOnline ? {} : {marginTop: '32px'})}} onClick={() => { onNavigate('home'); setMobileMenuOpen(false); }}>
-      <img src="/finetune-logo.svg" alt="Finetune Studios Logo" style={{width: 'clamp(40px, 10vw, 48px)', height: 'clamp(40px, 10vw, 48px)'}} />
+      <img src="/finetune-logo.svg" alt="Finetune Studios Logo" style={{width: 'clamp(60px, 15vw, 80px)', height: 'auto'}} />
     </button>
     
     {/* Hamburger Menu Button */}
@@ -1661,7 +1661,7 @@ const Footer = () => (
     <div style={styles.footerGrid}>
       <div>
         <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px'}}>
-          <img src="/finetune-logo.svg" alt="Finetune Studios" style={{width: '56px', height: '56px'}} />
+          <img src="/finetune-logo.svg" alt="Finetune Studios" style={{width: '80px', height: 'auto'}} />
         </div>
         <p style={styles.footerText}>
           Professional recording facilities in the heart of Bryanston, Sandton. 
@@ -1759,7 +1759,7 @@ const HomePage = ({ onNavigate }) => {
       {/* Hero */}
       <section style={styles.hero}>
         <div style={{marginBottom: '32px'}}>
-          <img src="/finetune-logo.svg" alt="Finetune Studios" style={{width: 'clamp(80px, 20vw, 120px)', height: 'auto', margin: '0 auto', display: 'block'}} />
+          <img src="/finetune-logo.svg" alt="Finetune Studios" style={{width: 'clamp(120px, 30vw, 180px)', height: 'auto', margin: '0 auto', display: 'block'}} />
         </div>
         <h1 style={styles.heroTitle}>
           PROFESSIONAL<br />
@@ -1861,7 +1861,7 @@ const LoginPage = ({ isAdmin, onLogin, onNavigate }) => {
         <div style={styles.innerHeaderContent}>
           <button style={styles.backButton} onClick={() => onNavigate('home')}>← Back to Home</button>
           <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-            <img src="/finetune-logo.svg" alt="Finetune Studios" style={{width: '40px', height: '40px'}} />
+            <img src="/finetune-logo.svg" alt="Finetune Studios" style={{width: '60px', height: 'auto'}} />
           </div>
         </div>
       </header>
@@ -1975,7 +1975,7 @@ const SignupPage = ({ onSignup, onNavigate }) => {
         <div style={styles.innerHeaderContent}>
           <button style={styles.backButton} onClick={() => onNavigate('home')}>← Back to Home</button>
           <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-            <img src="/finetune-logo.svg" alt="Finetune Studios" style={{width: '40px', height: '40px'}} />
+            <img src="/finetune-logo.svg" alt="Finetune Studios" style={{width: '60px', height: 'auto'}} />
           </div>
         </div>
       </header>
@@ -2125,7 +2125,7 @@ const AdminDashboard = ({ user, onNavigate, onLogout }) => {
       <header style={styles.dashboardHeader}>
         <div style={styles.dashboardHeaderContent}>
           <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-            <img src="/finetune-logo.svg" alt="Finetune Studios" style={{width: '40px', height: '40px'}} />
+            <img src="/finetune-logo.svg" alt="Finetune Studios" style={{width: '60px', height: 'auto'}} />
             <span style={{fontSize: '20px', fontWeight: 'bold', letterSpacing: '2px'}}>FINETUNE STUDIOS - ADMIN</span>
           </div>
           <div style={{display: 'flex', alignItems: 'center', gap: '24px'}}>
@@ -2880,7 +2880,7 @@ const BookingFlow = ({ user, onNavigate }) => {
         <div style={styles.innerHeaderContent}>
           <button style={styles.backButton} onClick={() => onNavigate('home')}>← Back to Home</button>
           <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-            <img src="/finetune-logo.svg" alt="Finetune Studios" style={{width: '40px', height: '40px'}} />
+            <img src="/finetune-logo.svg" alt="Finetune Studios" style={{width: '60px', height: 'auto'}} />
           </div>
         </div>
       </header>

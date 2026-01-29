@@ -1,6 +1,6 @@
-<svg viewBox="0 0 512 320" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="0 0 512 320" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
   <!-- Audio wave pattern -->
-  <g fill="#dc2626">
+  <g fill="#DC2626">
     <!-- Left side waves -->
     <rect x="88" y="175" width="24" height="40" rx="4"/>
     <rect x="88" y="145" width="24" height="20" rx="4"/>
@@ -49,5 +49,5 @@
   </g>
   
   <!-- Text "finetune" -->
-  <text x="256" y="280" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#dc2626" text-anchor="middle" letter-spacing="2">finetune</text>
+  <text x="256" y="280" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#DC2626" text-anchor="middle" letter-spacing="2">finetune</text>
 </svg>
