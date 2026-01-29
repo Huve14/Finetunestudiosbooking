@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { registerServiceWorker, requestInstall, setupOnlineOfflineListeners } from './pwaUtils';
 
@@ -2107,15 +2107,1434 @@ const SignupPage = ({ onSignup, onNavigate }) => {
 };
 
 // Admin Dashboard
-const AdminDashboard = ({ user, onNavigate, onLogout }) => {
-  const [bookings, setBookings] = useState([]);
-  const [loading, setLoading] = useState(true);
+const AdminContext = React.createContext(null);
+
+const Button = ({ variant = 'primary', style, children, ...props }) => {
+  const base = variant === 'primary' ? styles.btnPrimary : variant === 'secondary' ? styles.btnSecondary : styles.btnOutline;
+  return (
+    <button style={{...base, ...style}} {...props}>
+      {children}
+    </button>
+  );
+};
+
+const StatusBadge = ({ status }) => {
+  const adminTheme = useContext(AdminContext);
+  const themeColors = adminTheme?.colors || colors;
+  const badgeColors = {
+    pending: { backgroundColor: '#FEF3C7', color: '#92400E' },
+    confirmed: { backgroundColor: '#DCFCE7', color: '#166534' },
+    cancelled: { backgroundColor: '#FEE2E2', color: themeColors.red },
+    completed: { backgroundColor: '#E0E7FF', color: '#3730A3' }
+  };
+  const style = badgeColors[status] || badgeColors.pending;
+  return (
+    <span style={{
+      padding: '6px 10px',
+      borderRadius: '999px',
+      fontSize: '12px',
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: '0.5px',
+      ...style
+    }}>
+      {status}
+    </span>
+  );
+};
+
+const Modal = ({ open, title, onClose, children, actions }) => {
+  if (!open) return null;
+  return (
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 2000,
+      padding: '16px'
+    }}>
+      <div style={{
+        backgroundColor: colors.white,
+        borderRadius: '16px',
+        width: 'min(720px, 100%)',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+        padding: '24px'
+      }}>
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
+          <h3 style={{margin: 0, fontSize: '20px'}}>{title}</h3>
+          <button onClick={onClose} style={{border: 'none', background: 'none', fontSize: '18px', cursor: 'pointer'}}>✕</button>
+        </div>
+        <div style={{maxHeight: '60vh', overflowY: 'auto', paddingRight: '4px'}}>
+          {children}
+        </div>
+        {actions && (
+          <div style={{marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '12px', flexWrap: 'wrap'}}>
+            {actions}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const StatCard = ({ icon, label, value, trend, change }) => (
+  <div style={{
+    backgroundColor: colors.white,
+    borderRadius: '16px',
+    padding: '20px',
+    boxShadow: '0 6px 20px rgba(0,0,0,0.08)',
+    borderTop: `4px solid ${colors.red}`
+  }}>
+    <div style={{fontSize: '24px', marginBottom: '10px'}}>{icon}</div>
+    <div style={{fontSize: '12px', color: colors.gray500, textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '600'}}>{label}</div>
+    <div style={{fontSize: '28px', fontWeight: '800', marginTop: '6px'}}>{value}</div>
+    {trend && (
+      <div style={{marginTop: '8px', fontSize: '12px', fontWeight: '600', color: trend === 'up' ? '#16a34a' : '#dc2626', display: 'flex', alignItems: 'center', gap: '6px'}}>
+        <span>{trend === 'up' ? '▲' : '▼'}</span>
+        <span>{change}%</span>
+      </div>
+    )}
+  </div>
+);
+
+// Dashboard Overview Component
+const DashboardOverview = () => {
+  const [comparisonMode, setComparisonMode] = useState('current');
+  const [loading, setLoading] = useState(false);
+  const [viewport, setViewport] = useState({ width: window.innerWidth });
+  const [statsData, setStatsData] = useState({
+    current: {
+      todayBookings: 4,
+      weeklyRevenue: 18200,
+      monthlyRevenue: 41200,
+      utilizationRate: 76,
+      pendingConfirmations: 5,
+      newUsers: 7
+    },
+    previous: {
+      todayBookings: 6,
+      weeklyRevenue: 16500,
+      monthlyRevenue: 39800,
+      utilizationRate: 68,
+      pendingConfirmations: 8,
+      newUsers: 4
+    }
+  });
+
+  const [revenueSeries, setRevenueSeries] = useState([4200, 5200, 6100, 4800, 7400, 6800, 7900]);
+  const [activityFeed, setActivityFeed] = useState([
+    { id: 'act-1', type: 'new booking', text: 'Studio A booked by Naledi Dlamini', time: '10 min ago' },
+    { id: 'act-2', type: 'cancellation', text: 'Booking bk-1004 cancelled', time: '35 min ago' },
+    { id: 'act-3', type: 'new user', text: 'Thabo Nkosi created an account', time: '1 hr ago' },
+    { id: 'act-4', type: 'new booking', text: 'Studio C booked by Ayesha Khan', time: '2 hrs ago' },
+    { id: 'act-5', type: 'new booking', text: 'Studio B booked by Sipho Maseko', time: '3 hrs ago' }
+  ]);
 
   useEffect(() => {
-    loadBookings();
+    const handleResize = () => setViewport({ width: window.innerWidth });
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Guard: Only admins can view this dashboard
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLoading(true);
+      setTimeout(() => {
+        setStatsData(prev => ({
+          ...prev,
+          current: {
+            ...prev.current,
+            todayBookings: Math.max(0, prev.current.todayBookings + (Math.random() > 0.5 ? 1 : -1)),
+            weeklyRevenue: Math.max(0, prev.current.weeklyRevenue + Math.round((Math.random() - 0.4) * 1200)),
+            monthlyRevenue: Math.max(0, prev.current.monthlyRevenue + Math.round((Math.random() - 0.4) * 2500))
+          }
+        }));
+        setRevenueSeries(prev => prev.map((val, i) => i === prev.length - 1 ? Math.max(2000, val + Math.round((Math.random() - 0.3) * 1200)) : prev[i + 1]));
+        setLoading(false);
+      }, 600);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const statValue = (key) => statsData[comparisonMode][key];
+  const percentChange = (key) => {
+    const current = statsData.current[key];
+    const previous = statsData.previous[key];
+    if (previous === 0) return 100;
+    return Math.round(((current - previous) / previous) * 100);
+  };
+
+  const trendDirection = (key) => (statsData.current[key] >= statsData.previous[key] ? 'up' : 'down');
+  const monthlyTarget = 50000;
+  const progressValue = Math.min(100, Math.round((statsData.current.monthlyRevenue / monthlyTarget) * 100));
+
+  const gridColumns = viewport.width < 640 ? '1fr' : viewport.width < 1024 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)';
+
+  const min = Math.min(...revenueSeries);
+  const max = Math.max(...revenueSeries);
+  const points = revenueSeries.map((value, index) => {
+    const x = (index / (revenueSeries.length - 1)) * 280 + 10;
+    const y = 80 - ((value - min) / Math.max(1, max - min)) * 60 + 10;
+    return `${x},${y}`;
+  }).join(' ');
+
+  const dailyBookingsLow = statsData.current.todayBookings < 3;
+
+  return (
+    <div style={{padding: '24px', backgroundColor: colors.gray100, fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"}}>
+      <div style={{display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '16px'}}>
+        <div>
+          <h2 style={{margin: 0}}>Dashboard Overview</h2>
+          <p style={{margin: '4px 0 0', color: colors.gray600}}>Finetune Studios admin insights</p>
+        </div>
+        <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+          <Button variant={comparisonMode === 'current' ? 'primary' : 'outline'} onClick={() => setComparisonMode('current')}>Current</Button>
+          <Button variant={comparisonMode === 'previous' ? 'primary' : 'outline'} onClick={() => setComparisonMode('previous')}>Previous</Button>
+          <div style={{fontSize: '12px', color: colors.gray600}}>{loading ? 'Refreshing...' : 'Auto-refresh every 60s'}</div>
+        </div>
+      </div>
+
+      {dailyBookingsLow && (
+        <div style={{backgroundColor: '#FEF3C7', color: '#92400E', padding: '12px 16px', borderRadius: '12px', fontWeight: '600', marginBottom: '16px'}}>
+          ⚠️ Daily bookings dropped below 3 today.
+        </div>
+      )}
+
+      <div style={{display: 'grid', gap: '16px', gridTemplateColumns: gridColumns}}>
+        <StatCard icon="📅" label="Today's Bookings" value={statValue('todayBookings')} trend={trendDirection('todayBookings')} change={Math.abs(percentChange('todayBookings'))} />
+        <StatCard icon="💸" label="Weekly Revenue" value={`R${statValue('weeklyRevenue').toLocaleString()}`} trend={trendDirection('weeklyRevenue')} change={Math.abs(percentChange('weeklyRevenue'))} />
+        <StatCard icon="🗓️" label="Monthly Revenue" value={`R${statValue('monthlyRevenue').toLocaleString()}`} trend={trendDirection('monthlyRevenue')} change={Math.abs(percentChange('monthlyRevenue'))} />
+        <StatCard icon="📊" label="Utilization Rate" value={`${statValue('utilizationRate')}%`} trend={trendDirection('utilizationRate')} change={Math.abs(percentChange('utilizationRate'))} />
+        <StatCard icon="⏳" label="Pending Confirmations" value={statValue('pendingConfirmations')} trend={trendDirection('pendingConfirmations')} change={Math.abs(percentChange('pendingConfirmations'))} />
+        <StatCard icon="👥" label="New Users" value={statValue('newUsers')} trend={trendDirection('newUsers')} change={Math.abs(percentChange('newUsers'))} />
+      </div>
+
+      <div style={{display: 'grid', gap: '16px', gridTemplateColumns: viewport.width < 900 ? '1fr' : '2fr 1fr', marginTop: '16px'}}>
+        <div style={{backgroundColor: colors.white, borderRadius: '16px', padding: '20px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+          <h3 style={{marginTop: 0}}>Revenue (Last 7 Days)</h3>
+          <svg width="100%" height="120" viewBox="0 0 300 100" style={{overflow: 'visible'}}>
+            <polyline points={points} fill="none" stroke={colors.red} strokeWidth="3" />
+            <circle cx="290" cy={points.split(' ').pop().split(',')[1]} r="4" fill={colors.red} />
+          </svg>
+        </div>
+
+        <div style={{backgroundColor: colors.white, borderRadius: '16px', padding: '20px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+          <h3 style={{marginTop: 0}}>Monthly Goal</h3>
+          <div style={{fontSize: '28px', fontWeight: '800', color: colors.red}}>R{statsData.current.monthlyRevenue.toLocaleString()}</div>
+          <div style={{color: colors.gray600, marginBottom: '8px'}}>Target: R{monthlyTarget.toLocaleString()}</div>
+          <div style={{height: '10px', backgroundColor: colors.gray200, borderRadius: '999px', overflow: 'hidden'}}>
+            <div style={{width: `${progressValue}%`, backgroundColor: colors.red, height: '100%'}} />
+          </div>
+          <div style={{fontSize: '12px', color: colors.gray600, marginTop: '6px'}}>{progressValue}% of target</div>
+        </div>
+      </div>
+
+      <div style={{marginTop: '16px', backgroundColor: colors.white, borderRadius: '16px', padding: '20px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+        <h3 style={{marginTop: 0}}>Recent Activity</h3>
+        <ul style={{listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '10px'}}>
+          {activityFeed.slice(0, 5).map(item => (
+            <li key={item.id} style={{display: 'flex', justifyContent: 'space-between', gap: '12px', borderBottom: `1px solid ${colors.gray200}`, paddingBottom: '10px'}}>
+              <div>
+                <div style={{fontWeight: '600'}}>{item.text}</div>
+                <div style={{fontSize: '12px', color: colors.gray500}}>{item.type}</div>
+              </div>
+              <span style={{fontSize: '12px', color: colors.gray500}}>{item.time}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+};
+
+// Studio Booking Calendar Component
+const StudioBookingCalendar = () => {
+  const studiosList = [
+    { id: 'studio-a', name: 'Studio A', color: '#3B82F6' },
+    { id: 'studio-b', name: 'Studio B', color: '#10B981' },
+    { id: 'studio-c', name: 'Studio C', color: '#F59E0B' },
+    { id: 'studio-d', name: 'Studio D', color: '#8B5CF6' }
+  ];
+
+  const [view, setView] = useState('week');
+  const [splitView, setSplitView] = useState(false);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [bufferMinutes, setBufferMinutes] = useState(30);
+  const [showNewModal, setShowNewModal] = useState(null);
+  const [showDetails, setShowDetails] = useState(null);
+  const [contextMenu, setContextMenu] = useState(null);
+  const [recurring, setRecurring] = useState({ days: [], start: '10:00', end: '12:00' });
+
+  const [bookings, setBookings] = useState([
+    { id: 'bk-2001', studioId: 'studio-a', date: '2026-01-29', startTime: '10:00', endTime: '12:00', status: 'confirmed', title: 'Vocal Tracking' },
+    { id: 'bk-2002', studioId: 'studio-b', date: '2026-01-29', startTime: '13:00', endTime: '15:00', status: 'pending', title: 'Podcast Session' },
+    { id: 'bk-2003', studioId: 'studio-c', date: '2026-01-30', startTime: '09:00', endTime: '11:00', status: 'confirmed', title: 'Mix Review' },
+    { id: 'bk-2004', studioId: 'studio-d', date: '2026-01-30', startTime: '16:00', endTime: '18:00', status: 'confirmed', title: 'Rehearsal' }
+  ]);
+
+  const [blockedSlots, setBlockedSlots] = useState([
+    { id: 'block-1', studioId: 'studio-c', date: '2026-01-29', startTime: '18:00', endTime: '20:00', status: 'blocked', title: 'Maintenance' }
+  ]);
+
+  const timeSlots = Array.from({ length: 15 }, (_, i) => {
+    const hour = 8 + i;
+    return `${String(hour).padStart(2, '0')}:00`;
+  });
+
+  const formatDate = (date) => date.toISOString().split('T')[0];
+  const startOfWeek = (date) => {
+    const d = new Date(date);
+    d.setDate(d.getDate() - d.getDay());
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+  const addDays = (date, days) => {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d;
+  };
+  const sameDate = (a, b) => formatDate(a) === formatDate(b);
+
+  const daysInView = view === 'day'
+    ? [currentDate]
+    : view === 'week'
+      ? Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(currentDate), i))
+      : [];
+
+  const monthDays = view === 'month'
+    ? Array.from({ length: new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate() }, (_, i) => {
+        const d = new Date(currentDate.getFullYear(), currentDate.getMonth(), i + 1);
+        return d;
+      })
+    : [];
+
+  const allSlots = [...bookings, ...blockedSlots];
+
+  const findSlot = (date, time, studioId) => allSlots.find(slot => slot.date === date && slot.startTime === time && slot.studioId === studioId);
+
+  const isBufferSlot = (date, time, studioId) => {
+    if (!bufferMinutes) return false;
+    const slotMinutes = parseInt(time.split(':')[0], 10) * 60;
+    return bookings.some(b => {
+      if (b.date !== date || b.studioId !== studioId) return false;
+      const endMinutes = parseInt(b.endTime.split(':')[0], 10) * 60;
+      return slotMinutes >= endMinutes && slotMinutes < endMinutes + bufferMinutes;
+    });
+  };
+
+  const slotBackground = (slot) => {
+    if (!slot) return 'transparent';
+    const color = studiosList.find(s => s.id === slot.studioId)?.color || colors.gray400;
+    if (slot.status === 'blocked') return '#E5E7EB';
+    if (slot.status === 'pending') return `repeating-linear-gradient(45deg, ${color}, ${color} 6px, rgba(255,255,255,0.4) 6px, rgba(255,255,255,0.4) 12px)`;
+    return color;
+  };
+
+  const handleSlotClick = (date, time, studioId) => {
+    const slot = findSlot(date, time, studioId);
+    if (slot) {
+      setShowDetails(slot);
+    } else {
+      setShowNewModal({ date, time, studioId });
+    }
+  };
+
+  const handleDragStart = (event, slot) => {
+    event.dataTransfer.setData('text/plain', JSON.stringify(slot));
+  };
+
+  const handleDrop = (event, date, time, studioId) => {
+    event.preventDefault();
+    const slot = JSON.parse(event.dataTransfer.getData('text/plain'));
+    if (slot.status === 'blocked') return;
+    const confirmMove = window.confirm(`Move booking ${slot.id} to ${date} ${time}?`);
+    if (!confirmMove) return;
+    setBookings(prev => prev.map(b => b.id === slot.id ? { ...b, date, startTime: time, endTime: time } : b));
+  };
+
+  const openContextMenu = (event, date, time, studioId) => {
+    event.preventDefault();
+    setContextMenu({ x: event.clientX, y: event.clientY, date, time, studioId });
+  };
+
+  const addBlock = (type) => {
+    if (!contextMenu) return;
+    setBlockedSlots(prev => [...prev, {
+      id: `${type}-${Date.now()}`,
+      studioId: contextMenu.studioId,
+      date: contextMenu.date,
+      startTime: contextMenu.time,
+      endTime: contextMenu.time,
+      status: 'blocked',
+      title: type === 'maintenance' ? 'Maintenance' : 'Blocked'
+    }]);
+    setContextMenu(null);
+  };
+
+  const createRecurringBlocks = () => {
+    const base = startOfWeek(currentDate);
+    const upcomingWeeks = 4;
+    const newBlocks = [];
+    for (let w = 0; w < upcomingWeeks; w++) {
+      recurring.days.forEach(dayIndex => {
+        const date = addDays(base, dayIndex + w * 7);
+        newBlocks.push({
+          id: `rec-${Date.now()}-${w}-${dayIndex}`,
+          studioId: 'studio-a',
+          date: formatDate(date),
+          startTime: recurring.start,
+          endTime: recurring.end,
+          status: 'blocked',
+          title: 'Recurring Block'
+        });
+      });
+    }
+    setBlockedSlots(prev => [...prev, ...newBlocks]);
+  };
+
+  const handleNav = (direction) => {
+    const delta = view === 'month' ? 30 : view === 'week' ? 7 : 1;
+    setCurrentDate(prev => addDays(prev, direction * delta));
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const todayLineTop = ((nowMinutes - 8 * 60) / (14 * 60)) * (timeSlots.length * 48);
+
+  return (
+    <div style={{padding: '24px', backgroundColor: colors.gray100, fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"}} onClick={() => setContextMenu(null)}>
+      <div style={{display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '16px'}}>
+        <div>
+          <h2 style={{margin: 0}}>Studio Calendar</h2>
+          <p style={{margin: '4px 0 0', color: colors.gray600}}>Manage bookings, blocks, and maintenance</p>
+        </div>
+        <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px'}}>
+          <Button variant="outline" onClick={() => setView('day')}>Day</Button>
+          <Button variant="outline" onClick={() => setView('week')}>Week</Button>
+          <Button variant="outline" onClick={() => setView('month')}>Month</Button>
+          <Button variant={splitView ? 'primary' : 'outline'} onClick={() => setSplitView(!splitView)}>Split Studios</Button>
+          <Button variant="secondary" onClick={handlePrint}>Print Week</Button>
+        </div>
+      </div>
+
+      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px'}}>
+        <div style={{display: 'flex', gap: '8px'}}>
+          <Button variant="outline" onClick={() => handleNav(-1)}>Prev</Button>
+          <Button variant="outline" onClick={() => setCurrentDate(new Date())}>Today</Button>
+          <Button variant="outline" onClick={() => handleNav(1)}>Next</Button>
+        </div>
+        <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+          <label style={{fontSize: '12px', fontWeight: '600'}}>Buffer</label>
+          <select value={bufferMinutes} onChange={(e) => setBufferMinutes(parseInt(e.target.value, 10))} style={{...styles.input, padding: '8px 12px'}}>
+            <option value={15}>15 min</option>
+            <option value={30}>30 min</option>
+            <option value={60}>60 min</option>
+          </select>
+        </div>
+      </div>
+
+      <div style={{backgroundColor: colors.white, borderRadius: '16px', padding: '16px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+        {view !== 'month' && (
+          <div style={{position: 'relative'}}>
+            <div style={{display: 'grid', gridTemplateColumns: splitView ? `80px repeat(${studiosList.length}, 1fr)` : `80px repeat(${daysInView.length}, 1fr)`}}>
+              <div></div>
+              {(splitView ? studiosList : daysInView).map((col, idx) => (
+                <div key={splitView ? col.id : col.toISOString()} style={{textAlign: 'center', fontWeight: '600', fontSize: '12px', paddingBottom: '8px'}}>
+                  {splitView ? col.name : col.toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric' })}
+                </div>
+              ))}
+            </div>
+
+            <div style={{display: 'grid', gridTemplateColumns: splitView ? `80px repeat(${studiosList.length}, 1fr)` : `80px repeat(${daysInView.length}, 1fr)`, rowGap: '4px'}}>
+              {timeSlots.map((time) => (
+                <React.Fragment key={time}>
+                  <div style={{fontSize: '12px', color: colors.gray500, padding: '10px 0'}}>{time}</div>
+                  {(splitView ? studiosList : daysInView).map((col) => {
+                    const date = splitView ? formatDate(currentDate) : formatDate(col);
+                    const studioId = splitView ? col.id : 'studio-a';
+                    const slot = findSlot(date, time, studioId);
+                    const buffer = isBufferSlot(date, time, studioId);
+                    return (
+                      <div
+                        key={`${date}-${time}-${studioId}`}
+                        style={{
+                          border: `1px solid ${colors.gray200}`,
+                          minHeight: '44px',
+                          borderRadius: '8px',
+                          background: buffer ? '#F3F4F6' : slotBackground(slot),
+                          color: slot ? colors.white : colors.gray500,
+                          fontSize: '11px',
+                          padding: '6px',
+                          cursor: 'pointer',
+                          position: 'relative'
+                        }}
+                        onClick={() => handleSlotClick(date, time, studioId)}
+                        onContextMenu={(e) => openContextMenu(e, date, time, studioId)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => handleDrop(e, date, time, studioId)}
+                      >
+                        {slot && (
+                          <div
+                            draggable={slot.status !== 'blocked'}
+                            onDragStart={(e) => handleDragStart(e, slot)}
+                            style={{fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px'}}
+                          >
+                            <span>{slot.title}</span>
+                            {slot.status === 'pending' && <span style={{fontSize: '10px'}}>⏳</span>}
+                            {slot.status === 'blocked' && <span style={{fontSize: '10px'}}>⛔</span>}
+                          </div>
+                        )}
+                        {!slot && buffer && (
+                          <div style={{fontSize: '10px', color: colors.gray500}}>Buffer</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
+            </div>
+
+            {view !== 'month' && now.getHours() >= 8 && now.getHours() <= 22 && (
+              <div style={{
+                position: 'absolute',
+                top: `${todayLineTop}px`,
+                left: '80px',
+                right: 0,
+                height: '2px',
+                backgroundColor: colors.red,
+                opacity: 0.8
+              }} />
+            )}
+          </div>
+        )}
+
+        {view === 'month' && (
+          <div style={{display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px'}}>
+            {monthDays.map(day => {
+              const date = formatDate(day);
+              const dayBookings = bookings.filter(b => b.date === date);
+              return (
+                <div key={date} style={{border: `1px solid ${colors.gray200}`, borderRadius: '10px', minHeight: '110px', padding: '8px'}}>
+                  <div style={{fontSize: '12px', fontWeight: '600'}}>{day.getDate()}</div>
+                  {dayBookings.slice(0, 3).map(b => (
+                    <div key={b.id} style={{backgroundColor: studiosList.find(s => s.id === b.studioId)?.color, color: colors.white, padding: '4px 6px', borderRadius: '6px', fontSize: '10px', marginTop: '6px'}}>
+                      {b.startTime} {b.title}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div style={{marginTop: '16px', backgroundColor: colors.white, borderRadius: '16px', padding: '16px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+        <h3 style={{marginTop: 0}}>Recurring Block Creator</h3>
+        <div style={{display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center'}}>
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => (
+            <label key={day} style={{fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px'}}>
+              <input
+                type="checkbox"
+                checked={recurring.days.includes(idx)}
+                onChange={() => setRecurring(prev => ({
+                  ...prev,
+                  days: prev.days.includes(idx) ? prev.days.filter(d => d !== idx) : [...prev.days, idx]
+                }))}
+              />
+              {day}
+            </label>
+          ))}
+          <input type="time" value={recurring.start} onChange={(e) => setRecurring(prev => ({ ...prev, start: e.target.value }))} style={{...styles.input, padding: '8px 10px'}} />
+          <input type="time" value={recurring.end} onChange={(e) => setRecurring(prev => ({ ...prev, end: e.target.value }))} style={{...styles.input, padding: '8px 10px'}} />
+          <Button variant="secondary" onClick={createRecurringBlocks}>Repeat Weekly</Button>
+        </div>
+      </div>
+
+      {contextMenu && (
+        <div style={{position: 'fixed', top: contextMenu.y, left: contextMenu.x, backgroundColor: colors.white, border: `1px solid ${colors.gray200}`, borderRadius: '8px', boxShadow: '0 8px 20px rgba(0,0,0,0.12)', zIndex: 2000}}>
+          <div style={{padding: '10px 12px', cursor: 'pointer'}} onClick={() => addBlock('blocked')}>Block Slot</div>
+          <div style={{padding: '10px 12px', cursor: 'pointer'}} onClick={() => addBlock('maintenance')}>Add Maintenance</div>
+          <div style={{padding: '10px 12px', cursor: 'pointer'}} onClick={() => setContextMenu(null)}>Add Note</div>
+        </div>
+      )}
+
+      <Modal
+        open={!!showNewModal}
+        title="New Booking"
+        onClose={() => setShowNewModal(null)}
+        actions={(
+          <>
+            <Button variant="outline" onClick={() => setShowNewModal(null)}>Cancel</Button>
+            <Button variant="primary" onClick={() => setShowNewModal(null)}>Create</Button>
+          </>
+        )}
+      >
+        {showNewModal && (
+          <div style={{display: 'grid', gap: '12px'}}>
+            <div><strong>Date:</strong> {showNewModal.date}</div>
+            <div><strong>Time:</strong> {showNewModal.time}</div>
+            <div><strong>Studio:</strong> {studiosList.find(s => s.id === showNewModal.studioId)?.name}</div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={!!showDetails}
+        title="Booking Details"
+        onClose={() => setShowDetails(null)}
+        actions={(
+          <>
+            <Button variant="outline" onClick={() => setShowDetails(null)}>Close</Button>
+            <Button variant="secondary" onClick={() => setShowDetails(null)}>Confirm</Button>
+            <Button variant="outline" onClick={() => setShowDetails(null)}>Cancel</Button>
+          </>
+        )}
+      >
+        {showDetails && (
+          <div style={{display: 'grid', gap: '12px'}}>
+            <div><strong>ID:</strong> {showDetails.id}</div>
+            <div><strong>Studio:</strong> {studiosList.find(s => s.id === showDetails.studioId)?.name}</div>
+            <div><strong>Date:</strong> {showDetails.date}</div>
+            <div><strong>Time:</strong> {showDetails.startTime} - {showDetails.endTime}</div>
+            <div><strong>Status:</strong> {showDetails.status}</div>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+};
+
+// Financial Reports Component
+const FinancialReports = () => {
+  const presets = ['today', 'this week', 'this month', 'this quarter', 'custom'];
+  const [preset, setPreset] = useState('this month');
+  const [range, setRange] = useState({ start: '', end: '' });
+  const [activeTab, setActiveTab] = useState('studio');
+  const [refundModal, setRefundModal] = useState(null);
+
+  const studiosData = [
+    { id: 'studio-a', name: 'Studio A' },
+    { id: 'studio-b', name: 'Studio B' },
+    { id: 'studio-c', name: 'Studio C' },
+    { id: 'studio-d', name: 'Studio D' }
+  ];
+
+  const paymentMethods = ['card', 'eft', 'cash'];
+
+  const mockTransactions = Array.from({ length: 90 }, (_, i) => {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    const studio = studiosData[i % studiosData.length];
+    const amount = 400 + (i % 6) * 150;
+    const status = i % 9 === 0 ? 'refund' : i % 5 === 0 ? 'pending' : 'paid';
+    return {
+      id: `tx-${1000 + i}`,
+      studioId: studio.id,
+      studioName: studio.name,
+      bookingId: `bk-${2000 + i}`,
+      client: ['Naledi', 'Sipho', 'Ayesha', 'Thabo'][i % 4],
+      date: date.toISOString().split('T')[0],
+      timeSlot: `${String(8 + (i % 12)).padStart(2, '0')}:00`,
+      amount,
+      method: paymentMethods[i % paymentMethods.length],
+      status,
+      refundReason: status === 'refund' ? ['Schedule conflict', 'Equipment issue', 'Client request'][i % 3] : null
+    };
+  });
+
+  const getRangeForPreset = (value) => {
+    const today = new Date();
+    const start = new Date(today);
+    const end = new Date(today);
+    if (value === 'today') {
+      return { start, end };
+    }
+    if (value === 'this week') {
+      start.setDate(today.getDate() - today.getDay());
+      return { start, end };
+    }
+    if (value === 'this month') {
+      start.setDate(1);
+      return { start, end };
+    }
+    if (value === 'this quarter') {
+      const quarter = Math.floor(today.getMonth() / 3) * 3;
+      start.setMonth(quarter, 1);
+      return { start, end };
+    }
+    return { start: null, end: null };
+  };
+
+  const activeRange = preset === 'custom' && range.start && range.end
+    ? { start: new Date(range.start), end: new Date(range.end) }
+    : getRangeForPreset(preset);
+
+  const filtered = mockTransactions.filter(tx => {
+    if (!activeRange.start || !activeRange.end) return true;
+    const date = new Date(tx.date);
+    return date >= activeRange.start && date <= activeRange.end;
+  });
+
+  const totalRevenue = filtered.filter(t => t.status === 'paid').reduce((sum, t) => sum + t.amount, 0);
+  const pendingPayments = filtered.filter(t => t.status === 'pending').reduce((sum, t) => sum + t.amount, 0);
+  const refunds = filtered.filter(t => t.status === 'refund').reduce((sum, t) => sum + t.amount, 0);
+  const completedPayments = totalRevenue;
+  const netRevenue = totalRevenue - refunds;
+
+  const previousPeriodRange = activeRange.start && activeRange.end
+    ? {
+        start: new Date(activeRange.start.getTime() - (activeRange.end - activeRange.start) - 86400000),
+        end: new Date(activeRange.start.getTime() - 86400000)
+      }
+    : null;
+
+  const previousRevenue = previousPeriodRange
+    ? mockTransactions
+        .filter(tx => {
+          const date = new Date(tx.date);
+          return date >= previousPeriodRange.start && date <= previousPeriodRange.end && tx.status === 'paid';
+        })
+        .reduce((sum, tx) => sum + tx.amount, 0)
+    : 0;
+
+  const revenueChange = previousRevenue ? Math.round(((totalRevenue - previousRevenue) / previousRevenue) * 100) : 100;
+
+  const dailyRevenue = Array.from({ length: 14 }, (_, i) => {
+    const day = new Date(activeRange.end || new Date());
+    day.setDate(day.getDate() - (13 - i));
+    const dateStr = day.toISOString().split('T')[0];
+    const total = filtered.filter(tx => tx.date === dateStr && tx.status === 'paid').reduce((sum, tx) => sum + tx.amount, 0);
+    return { date: dateStr, total };
+  });
+
+  const maxRevenue = Math.max(...dailyRevenue.map(d => d.total), 1);
+  const points = dailyRevenue.map((d, i) => {
+    const x = (i / (dailyRevenue.length - 1)) * 280 + 10;
+    const y = 80 - (d.total / maxRevenue) * 60 + 10;
+    return `${x},${y}`;
+  }).join(' ');
+
+  const studioStats = studiosData.map(studio => {
+    const studioTx = filtered.filter(tx => tx.studioId === studio.id && tx.status === 'paid');
+    const revenue = studioTx.reduce((sum, t) => sum + t.amount, 0);
+    return {
+      name: studio.name,
+      bookings: studioTx.length,
+      hours: studioTx.length * 2,
+      revenue,
+      percentage: totalRevenue ? Math.round((revenue / totalRevenue) * 100) : 0
+    };
+  });
+
+  const outstanding = filtered.filter(t => t.status === 'pending').slice(0, 6).map((t, idx) => ({
+    ...t,
+    daysOverdue: 2 + idx
+  }));
+
+  const refundsList = filtered.filter(t => t.status === 'refund').slice(0, 6);
+
+  const forecast = Math.round((totalRevenue / Math.max(1, dailyRevenue.length)) * 30);
+  const historicalAvg = Math.round((mockTransactions.filter(t => t.status === 'paid').reduce((sum, t) => sum + t.amount, 0) / 90) * 30);
+
+  return (
+    <div style={{padding: '24px', backgroundColor: colors.gray100, fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"}}>
+      <div style={{display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '16px'}}>
+        <div>
+          <h2 style={{margin: 0}}>Financial Reports</h2>
+          <p style={{margin: '4px 0 0', color: colors.gray600}}>Revenue insights and payment tracking</p>
+        </div>
+        <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center'}}>
+          {presets.map(p => (
+            <Button key={p} variant={preset === p ? 'primary' : 'outline'} onClick={() => setPreset(p)}>{p}</Button>
+          ))}
+          {preset === 'custom' && (
+            <div style={{display: 'flex', gap: '8px'}}>
+              <input type="date" value={range.start} onChange={(e) => setRange(prev => ({ ...prev, start: e.target.value }))} style={{...styles.input, padding: '8px 12px'}} />
+              <input type="date" value={range.end} onChange={(e) => setRange(prev => ({ ...prev, end: e.target.value }))} style={{...styles.input, padding: '8px 12px'}} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))'}}>
+        <StatCard icon="💰" label="Total Revenue" value={`R${totalRevenue.toLocaleString()}`} trend={revenueChange >= 0 ? 'up' : 'down'} change={Math.abs(revenueChange)} />
+        <StatCard icon="✅" label="Completed Payments" value={`R${completedPayments.toLocaleString()}`} trend="up" change={4} />
+        <StatCard icon="⏳" label="Pending Payments" value={`R${pendingPayments.toLocaleString()}`} trend="down" change={6} />
+        <StatCard icon="↩️" label="Refunds" value={`R${refunds.toLocaleString()}`} trend="down" change={3} />
+        <StatCard icon="📈" label="Net Revenue" value={`R${netRevenue.toLocaleString()}`} trend={netRevenue >= 0 ? 'up' : 'down'} change={2} />
+      </div>
+
+      <div style={{display: 'grid', gap: '16px', gridTemplateColumns: '2fr 1fr', marginTop: '16px'}}>
+        <div style={{backgroundColor: colors.white, borderRadius: '16px', padding: '20px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+          <h3 style={{marginTop: 0}}>Daily Revenue</h3>
+          <svg width="100%" height="120" viewBox="0 0 300 100">
+            <polyline points={points} fill="none" stroke={colors.red} strokeWidth="3" />
+          </svg>
+        </div>
+        <div style={{backgroundColor: colors.white, borderRadius: '16px', padding: '20px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+          <h3 style={{marginTop: 0}}>Revenue Forecast</h3>
+          <div style={{fontSize: '28px', fontWeight: '800', color: colors.red}}>R{forecast.toLocaleString()}</div>
+          <div style={{color: colors.gray600}}>Next month projection</div>
+          <div style={{marginTop: '10px', fontSize: '12px', color: colors.gray600}}>Historical avg: R{historicalAvg.toLocaleString()}</div>
+        </div>
+      </div>
+
+      <div style={{display: 'flex', gap: '8px', marginTop: '16px', flexWrap: 'wrap'}}>
+        {[
+          { key: 'studio', label: 'By Studio' },
+          { key: 'dow', label: 'By Day of Week' },
+          { key: 'slot', label: 'By Time Slot' },
+          { key: 'payment', label: 'By Payment Method' }
+        ].map(tab => (
+          <Button key={tab.key} variant={activeTab === tab.key ? 'primary' : 'outline'} onClick={() => setActiveTab(tab.key)}>
+            {tab.label}
+          </Button>
+        ))}
+      </div>
+
+      <div style={{marginTop: '16px', backgroundColor: colors.white, borderRadius: '16px', padding: '20px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+        <h3 style={{marginTop: 0}}>Studio Comparison</h3>
+        <DataTable
+          columns={[
+            { key: 'name', label: 'Studio' },
+            { key: 'bookings', label: 'Bookings' },
+            { key: 'hours', label: 'Hours Booked' },
+            { key: 'revenue', label: 'Revenue', render: (row) => `R${row.revenue.toLocaleString()}` },
+            { key: 'percentage', label: '% of Total', render: (row) => `${row.percentage}%` }
+          ]}
+          rows={studioStats}
+          sortKey="name"
+          sortDirection="asc"
+          onSort={() => {}}
+          selectable={false}
+          selectedIds={new Set()}
+          onToggleRow={() => {}}
+          onToggleAll={() => {}}
+          getRowId={(row) => row.name}
+        />
+      </div>
+
+      <div style={{marginTop: '16px', backgroundColor: colors.white, borderRadius: '16px', padding: '20px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+        <h3 style={{marginTop: 0}}>Outstanding Payments</h3>
+        <DataTable
+          columns={[
+            { key: 'client', label: 'Client' },
+            { key: 'date', label: 'Booking Date' },
+            { key: 'amount', label: 'Amount Due', render: (row) => `R${row.amount.toLocaleString()}` },
+            { key: 'daysOverdue', label: 'Days Overdue' }
+          ]}
+          rows={outstanding}
+          sortKey="client"
+          sortDirection="asc"
+          onSort={() => {}}
+          selectable={false}
+          selectedIds={new Set()}
+          onToggleRow={() => {}}
+          onToggleAll={() => {}}
+          getRowId={(row) => row.id}
+          rowActions={() => (
+            <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
+              <Button variant="secondary" style={{padding: '8px 12px', fontSize: '12px'}}>Send Reminder</Button>
+              <Button variant="outline" style={{padding: '8px 12px', fontSize: '12px'}}>Mark Paid</Button>
+              <Button variant="outline" style={{padding: '8px 12px', fontSize: '12px'}}>Write Off</Button>
+            </div>
+          )}
+        />
+      </div>
+
+      <div style={{marginTop: '16px', backgroundColor: colors.white, borderRadius: '16px', padding: '20px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+        <h3 style={{marginTop: 0}}>Refund Management</h3>
+        <DataTable
+          columns={[
+            { key: 'bookingId', label: 'Booking ID' },
+            { key: 'client', label: 'Client' },
+            { key: 'amount', label: 'Amount', render: (row) => `R${row.amount.toLocaleString()}` },
+            { key: 'refundReason', label: 'Reason' },
+            { key: 'date', label: 'Date' },
+            { key: 'status', label: 'Status', render: () => 'pending' }
+          ]}
+          rows={refundsList}
+          sortKey="date"
+          sortDirection="asc"
+          onSort={() => {}}
+          selectable={false}
+          selectedIds={new Set()}
+          onToggleRow={() => {}}
+          onToggleAll={() => {}}
+          getRowId={(row) => row.id}
+          rowActions={(row) => (
+            <Button variant="secondary" style={{padding: '8px 12px', fontSize: '12px'}} onClick={() => setRefundModal(row)}>
+              Process
+            </Button>
+          )}
+        />
+      </div>
+
+      <div style={{marginTop: '16px', display: 'flex', gap: '12px', flexWrap: 'wrap'}}>
+        <Button variant="secondary">Export PDF Summary</Button>
+        <Button variant="outline">Export CSV Transactions</Button>
+        <Button variant="outline">Export VAT Report</Button>
+      </div>
+
+      <Modal
+        open={!!refundModal}
+        title="Process Refund"
+        onClose={() => setRefundModal(null)}
+        actions={(
+          <>
+            <Button variant="outline" onClick={() => setRefundModal(null)}>Cancel</Button>
+            <Button variant="primary" onClick={() => setRefundModal(null)}>Confirm</Button>
+          </>
+        )}
+      >
+        {refundModal && (
+          <div style={{display: 'grid', gap: '12px'}}>
+            <div><strong>Booking:</strong> {refundModal.bookingId}</div>
+            <label style={{fontSize: '12px', fontWeight: '600'}}>Amount</label>
+            <input type="number" defaultValue={refundModal.amount} style={styles.input} />
+            <label style={{fontSize: '12px', fontWeight: '600'}}>Reason</label>
+            <select defaultValue={refundModal.refundReason || 'Client request'} style={{...styles.input, padding: '10px'}}>
+              <option>Client request</option>
+              <option>Schedule conflict</option>
+              <option>Equipment issue</option>
+              <option>Other</option>
+            </select>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+};
+
+// Admin Settings Component
+const AdminSettings = () => {
+  const sections = ['Business Hours', 'Booking Rules', 'Payment Settings', 'Branding', 'Data Management'];
+  const [activeSection, setActiveSection] = useState(sections[0]);
+  const [showToast, setShowToast] = useState(false);
+
+  const [businessHours, setBusinessHours] = useState({
+    Mon: { enabled: true, open: '09:00', close: '18:00' },
+    Tue: { enabled: true, open: '09:00', close: '18:00' },
+    Wed: { enabled: true, open: '09:00', close: '18:00' },
+    Thu: { enabled: true, open: '09:00', close: '18:00' },
+    Fri: { enabled: true, open: '09:00', close: '18:00' },
+    Sat: { enabled: true, open: '10:00', close: '16:00' },
+    Sun: { enabled: false, open: '10:00', close: '14:00' }
+  });
+  const [holidays, setHolidays] = useState(['2026-01-01', '2026-03-21']);
+  const [specialHours, setSpecialHours] = useState([{ date: '2026-02-14', open: '12:00', close: '20:00' }]);
+
+  const [bookingRules, setBookingRules] = useState({
+    minDuration: 2,
+    maxDuration: 8,
+    advanceLimit: 30,
+    cancellationHours: 24,
+    refundPercent: 80,
+    bufferMinutes: 30,
+    requireDeposit: true,
+    depositPercent: 30
+  });
+
+  const [paymentSettings, setPaymentSettings] = useState({
+    methods: { card: true, eft: true, cash: false, mobile: false },
+    gateway: 'Payfast',
+    apiKeys: { payfast: '••••••••••', yoco: '••••••••••', stripe: '••••••••••' },
+    testMode: true
+  });
+
+  const [branding, setBranding] = useState({
+    primaryColor: '#dc2626',
+    businessName: 'Finetune Studios',
+    address: '10 Muswell Rd S, Bryanston',
+    contact: '+27 11 123 4567',
+    invoiceFooter: 'Thank you for choosing Finetune Studios.'
+  });
+  const [logoPreview, setLogoPreview] = useState('');
+
+  const [dataMgmt, setDataMgmt] = useState({
+    lastBackup: '2026-01-20',
+    backupStatus: 'Healthy',
+    deleteMonths: 12
+  });
+
+  const saveChanges = () => {
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 2500);
+  };
+
+  return (
+    <div style={{padding: '24px', backgroundColor: colors.gray100, fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"}}>
+      <h2 style={{marginTop: 0}}>Admin Settings</h2>
+      <div style={{display: 'grid', gridTemplateColumns: '220px 1fr', gap: '16px'}}>
+        <aside style={{backgroundColor: colors.white, borderRadius: '16px', padding: '16px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+          <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+            {sections.map(section => (
+              <button
+                key={section}
+                onClick={() => setActiveSection(section)}
+                style={{
+                  padding: '12px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  backgroundColor: activeSection === section ? colors.red : colors.gray100,
+                  color: activeSection === section ? colors.white : colors.black,
+                  textAlign: 'left',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                {section}
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        <section style={{backgroundColor: colors.white, borderRadius: '16px', padding: '20px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+          {activeSection === 'Business Hours' && (
+            <div style={{display: 'grid', gap: '16px'}}>
+              <h3 style={{marginTop: 0}}>Business Hours</h3>
+              {Object.entries(businessHours).map(([day, data]) => (
+                <div key={day} style={{display: 'grid', gridTemplateColumns: '80px 1fr 1fr 1fr', gap: '12px', alignItems: 'center'}}>
+                  <label style={{fontWeight: '600'}}>{day}</label>
+                  <label style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                    <input
+                      type="checkbox"
+                      checked={data.enabled}
+                      onChange={() => setBusinessHours(prev => ({ ...prev, [day]: { ...prev[day], enabled: !prev[day].enabled } }))}
+                    />
+                    Open
+                  </label>
+                  <input type="time" value={data.open} disabled={!data.enabled} onChange={(e) => setBusinessHours(prev => ({ ...prev, [day]: { ...prev[day], open: e.target.value } }))} style={{...styles.input, padding: '8px 10px'}} />
+                  <input type="time" value={data.close} disabled={!data.enabled} onChange={(e) => setBusinessHours(prev => ({ ...prev, [day]: { ...prev[day], close: e.target.value } }))} style={{...styles.input, padding: '8px 10px'}} />
+                </div>
+              ))}
+
+              <div>
+                <h4>Holiday Calendar</h4>
+                <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
+                  {holidays.map(date => (
+                    <div key={date} style={{backgroundColor: colors.gray100, padding: '6px 10px', borderRadius: '999px', display: 'flex', alignItems: 'center', gap: '6px'}}>
+                      {date}
+                      <button style={{border: 'none', background: 'none', cursor: 'pointer'}} onClick={() => setHolidays(prev => prev.filter(d => d !== date))}>✕</button>
+                    </div>
+                  ))}
+                  <Button variant="outline" onClick={() => setHolidays(prev => [...prev, new Date().toISOString().split('T')[0]])}>Add Date</Button>
+                </div>
+              </div>
+
+              <div>
+                <h4>Special Hours Override</h4>
+                {specialHours.map((item, idx) => (
+                  <div key={idx} style={{display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px'}}>
+                    <input type="date" value={item.date} onChange={(e) => setSpecialHours(prev => prev.map((s, i) => i === idx ? { ...s, date: e.target.value } : s))} style={{...styles.input, padding: '8px 10px'}} />
+                    <input type="time" value={item.open} onChange={(e) => setSpecialHours(prev => prev.map((s, i) => i === idx ? { ...s, open: e.target.value } : s))} style={{...styles.input, padding: '8px 10px'}} />
+                    <input type="time" value={item.close} onChange={(e) => setSpecialHours(prev => prev.map((s, i) => i === idx ? { ...s, close: e.target.value } : s))} style={{...styles.input, padding: '8px 10px'}} />
+                  </div>
+                ))}
+                <Button variant="outline" onClick={() => setSpecialHours(prev => [...prev, { date: new Date().toISOString().split('T')[0], open: '10:00', close: '16:00' }])}>Add Override</Button>
+              </div>
+            </div>
+          )}
+
+          {activeSection === 'Booking Rules' && (
+            <div style={{display: 'grid', gap: '16px'}}>
+              <h3 style={{marginTop: 0}}>Booking Rules</h3>
+              <label>Minimum Duration</label>
+              <select value={bookingRules.minDuration} onChange={(e) => setBookingRules(prev => ({ ...prev, minDuration: parseInt(e.target.value, 10) }))} style={{...styles.input, padding: '10px'}}>
+                {[1, 2, 3].map(val => <option key={val} value={val}>{val} hours</option>)}
+              </select>
+              <label>Maximum Duration</label>
+              <select value={bookingRules.maxDuration} onChange={(e) => setBookingRules(prev => ({ ...prev, maxDuration: parseInt(e.target.value, 10) }))} style={{...styles.input, padding: '10px'}}>
+                {[4, 6, 8, 12].map(val => <option key={val} value={val}>{val} hours</option>)}
+              </select>
+              <label>Advance Booking Limit</label>
+              <select value={bookingRules.advanceLimit} onChange={(e) => setBookingRules(prev => ({ ...prev, advanceLimit: parseInt(e.target.value, 10) }))} style={{...styles.input, padding: '10px'}}>
+                {[7, 14, 30, 60].map(val => <option key={val} value={val}>{val} days</option>)}
+              </select>
+              <label>Cancellation Policy</label>
+              <div style={{display: 'flex', gap: '8px'}}>
+                <input type="number" value={bookingRules.cancellationHours} onChange={(e) => setBookingRules(prev => ({ ...prev, cancellationHours: parseInt(e.target.value, 10) }))} style={styles.input} />
+                <input type="number" value={bookingRules.refundPercent} onChange={(e) => setBookingRules(prev => ({ ...prev, refundPercent: parseInt(e.target.value, 10) }))} style={styles.input} />
+              </div>
+              <label>Buffer Time</label>
+              <select value={bookingRules.bufferMinutes} onChange={(e) => setBookingRules(prev => ({ ...prev, bufferMinutes: parseInt(e.target.value, 10) }))} style={{...styles.input, padding: '10px'}}>
+                {[0, 15, 30, 60].map(val => <option key={val} value={val}>{val} min</option>)}
+              </select>
+              <label style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                <input type="checkbox" checked={bookingRules.requireDeposit} onChange={() => setBookingRules(prev => ({ ...prev, requireDeposit: !prev.requireDeposit }))} />
+                Require Deposit
+              </label>
+              {bookingRules.requireDeposit && (
+                <input type="number" value={bookingRules.depositPercent} onChange={(e) => setBookingRules(prev => ({ ...prev, depositPercent: parseInt(e.target.value, 10) }))} style={styles.input} />
+              )}
+            </div>
+          )}
+
+          {activeSection === 'Payment Settings' && (
+            <div style={{display: 'grid', gap: '16px'}}>
+              <h3 style={{marginTop: 0}}>Payment Settings</h3>
+              <div style={{display: 'flex', gap: '12px', flexWrap: 'wrap'}}>
+                {Object.keys(paymentSettings.methods).map(method => (
+                  <label key={method} style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                    <input
+                      type="checkbox"
+                      checked={paymentSettings.methods[method]}
+                      onChange={() => setPaymentSettings(prev => ({ ...prev, methods: { ...prev.methods, [method]: !prev.methods[method] } }))}
+                    />
+                    {method}
+                  </label>
+                ))}
+              </div>
+              <label>Payment Gateway</label>
+              <select value={paymentSettings.gateway} onChange={(e) => setPaymentSettings(prev => ({ ...prev, gateway: e.target.value }))} style={{...styles.input, padding: '10px'}}>
+                {['Payfast', 'Yoco', 'Stripe'].map(val => <option key={val}>{val}</option>)}
+              </select>
+              <label>API Keys</label>
+              {Object.keys(paymentSettings.apiKeys).map(key => (
+                <input key={key} type="password" value={paymentSettings.apiKeys[key]} onChange={(e) => setPaymentSettings(prev => ({ ...prev, apiKeys: { ...prev.apiKeys, [key]: e.target.value } }))} style={styles.input} />
+              ))}
+              <label style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                <input type="checkbox" checked={paymentSettings.testMode} onChange={() => setPaymentSettings(prev => ({ ...prev, testMode: !prev.testMode }))} />
+                Test Mode
+              </label>
+            </div>
+          )}
+
+          {activeSection === 'Branding' && (
+            <div style={{display: 'grid', gap: '16px'}}>
+              <h3 style={{marginTop: 0}}>Branding</h3>
+              <div style={{backgroundColor: colors.gray100, borderRadius: '12px', padding: '20px', textAlign: 'center'}}>
+                {logoPreview ? (
+                  <a href="/finetune-logo.svg" target="_blank" rel="noreferrer" style={{display: 'inline-block'}}>
+                    <img src={logoPreview} alt="Uploaded logo" style={{maxWidth: '180px', maxHeight: '120px', objectFit: 'contain'}} />
+                  </a>
+                ) : (
+                  <div style={{color: colors.gray600, fontSize: '14px'}}>Logo Upload Placeholder</div>
+                )}
+              </div>
+              <input
+                type="file"
+                accept="image/png"
+                onChange={(e) => {
+                  const file = e.target.files && e.target.files[0];
+                  if (!file) return;
+                  const url = URL.createObjectURL(file);
+                  setLogoPreview(url);
+                }}
+                style={styles.input}
+              />
+              <label>Primary Color</label>
+              <input type="color" value={branding.primaryColor} onChange={(e) => setBranding(prev => ({ ...prev, primaryColor: e.target.value }))} />
+              <input type="text" value={branding.businessName} onChange={(e) => setBranding(prev => ({ ...prev, businessName: e.target.value }))} style={styles.input} />
+              <input type="text" value={branding.address} onChange={(e) => setBranding(prev => ({ ...prev, address: e.target.value }))} style={styles.input} />
+              <input type="text" value={branding.contact} onChange={(e) => setBranding(prev => ({ ...prev, contact: e.target.value }))} style={styles.input} />
+              <textarea value={branding.invoiceFooter} onChange={(e) => setBranding(prev => ({ ...prev, invoiceFooter: e.target.value }))} style={{...styles.input, height: '80px'}} />
+            </div>
+          )}
+
+          {activeSection === 'Data Management' && (
+            <div style={{display: 'grid', gap: '16px'}}>
+              <h3 style={{marginTop: 0}}>Data Management</h3>
+              <Button variant="secondary">Export All Data (JSON)</Button>
+              <div style={{color: colors.gray600}}>Backup Status: {dataMgmt.backupStatus}</div>
+              <div style={{color: colors.gray600}}>Last Backup: {dataMgmt.lastBackup}</div>
+              <label>Delete old bookings (months)</label>
+              <input type="number" value={dataMgmt.deleteMonths} onChange={(e) => setDataMgmt(prev => ({ ...prev, deleteMonths: parseInt(e.target.value, 10) }))} style={styles.input} />
+            </div>
+          )}
+
+          <div style={{marginTop: '24px', display: 'flex', justifyContent: 'flex-end'}}>
+            <Button variant="primary" onClick={saveChanges}>Save Changes</Button>
+          </div>
+        </section>
+      </div>
+
+      {showToast && (
+        <div style={{position: 'fixed', bottom: '24px', right: '24px', backgroundColor: '#10B981', color: colors.white, padding: '12px 16px', borderRadius: '12px', boxShadow: '0 8px 20px rgba(0,0,0,0.2)'}}>
+          ✅ Settings saved successfully
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Notifications Management Component
+const NotificationsManagement = () => {
+  const tabs = ['Automated Reminders', 'Email Templates', 'Broadcast', 'WhatsApp Status'];
+  const [activeTab, setActiveTab] = useState(tabs[0]);
+
+  const [reminders, setReminders] = useState({
+    confirmation: { enabled: true, timing: 0, unit: 'hours', channels: { email: true, sms: false, whatsapp: true } },
+    reminder24: { enabled: true, timing: 24, unit: 'hours', channels: { email: true, sms: true, whatsapp: false } },
+    reminder1: { enabled: false, timing: 1, unit: 'hours', channels: { email: false, sms: true, whatsapp: true } },
+    followup: { enabled: true, timing: 2, unit: 'days', channels: { email: true, sms: false, whatsapp: false } },
+    payment: { enabled: true, timing: 4, unit: 'hours', channels: { email: true, sms: true, whatsapp: true } }
+  });
+
+  const templateList = ['confirmation', 'reminder', 'cancellation', 'payment receipt', 'welcome'];
+  const [selectedTemplate, setSelectedTemplate] = useState('confirmation');
+  const [templates, setTemplates] = useState({
+    confirmation: { subject: 'Your booking is confirmed', body: 'Hi {clientName}, your booking for {studioName} on {date} at {time} is confirmed. Amount: {amount}.' },
+    reminder: { subject: 'Booking reminder', body: 'Reminder: {studioName} session on {date} at {time}. See you soon, {clientName}!' },
+    cancellation: { subject: 'Booking cancelled', body: 'Hi {clientName}, your booking for {studioName} on {date} at {time} has been cancelled.' },
+    'payment receipt': { subject: 'Payment receipt', body: 'Thanks {clientName}! We received {amount} for {studioName} on {date}.' },
+    welcome: { subject: 'Welcome to Finetune Studios', body: 'Welcome {clientName}! We are excited to host you at {studioName}.' }
+  });
+  const [draft, setDraft] = useState(templates[selectedTemplate]);
+  const [showPreview, setShowPreview] = useState(false);
+
+  const [broadcast, setBroadcast] = useState({
+    filter: 'all users',
+    subject: '',
+    body: '',
+    schedule: false,
+    sendAt: ''
+  });
+
+  const sendHistory = [
+    { id: 'send-1', date: '2026-01-25', subject: 'January offers', recipients: 120, openRate: '42%' },
+    { id: 'send-2', date: '2026-01-20', subject: 'New Studio Packages', recipients: 80, openRate: '51%' }
+  ];
+
+  const whatsappLog = [
+    { id: 'wa-1', message: 'Booking confirmation sent to Naledi', time: '10 mins ago' },
+    { id: 'wa-2', message: 'Reminder sent to Sipho', time: '1 hr ago' }
+  ];
+
+  useEffect(() => {
+    setDraft(templates[selectedTemplate]);
+  }, [selectedTemplate, templates]);
+
+  const sampleData = { clientName: 'Naledi', studioName: 'Studio A', date: '2026-01-29', time: '10:00', amount: 'R1200' };
+  const previewBody = (draft?.body || '').replace(/\{(.*?)\}/g, (_, key) => sampleData[key] || `{${key}}`);
+
+  return (
+    <div style={{padding: '24px', backgroundColor: colors.gray100, fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"}}>
+      <h2 style={{marginTop: 0}}>Notifications</h2>
+      <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px'}}>
+        {tabs.map(tab => (
+          <Button key={tab} variant={activeTab === tab ? 'primary' : 'outline'} onClick={() => setActiveTab(tab)}>
+            {tab}
+          </Button>
+        ))}
+      </div>
+
+      {activeTab === 'Automated Reminders' && (
+        <div style={{backgroundColor: colors.white, borderRadius: '16px', padding: '20px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+          <h3 style={{marginTop: 0}}>Automated Reminders</h3>
+          {Object.entries(reminders).map(([key, config]) => (
+            <div key={key} style={{borderBottom: `1px solid ${colors.gray200}`, paddingBottom: '12px', marginBottom: '12px'}}>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                <strong>{key}</strong>
+                <label style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                  <input type="checkbox" checked={config.enabled} onChange={() => setReminders(prev => ({ ...prev, [key]: { ...prev[key], enabled: !prev[key].enabled } }))} />
+                  Enabled
+                </label>
+              </div>
+              <div style={{display: 'flex', gap: '8px', marginTop: '8px'}}>
+                <input type="number" value={config.timing} onChange={(e) => setReminders(prev => ({ ...prev, [key]: { ...prev[key], timing: parseInt(e.target.value, 10) } }))} style={styles.input} />
+                <select value={config.unit} onChange={(e) => setReminders(prev => ({ ...prev, [key]: { ...prev[key], unit: e.target.value } }))} style={{...styles.input, padding: '8px 10px'}}>
+                  <option value="hours">hours</option>
+                  <option value="days">days</option>
+                </select>
+                {Object.keys(config.channels).map(channel => (
+                  <label key={channel} style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                    <input type="checkbox" checked={config.channels[channel]} onChange={() => setReminders(prev => ({
+                      ...prev,
+                      [key]: {
+                        ...prev[key],
+                        channels: { ...prev[key].channels, [channel]: !prev[key].channels[channel] }
+                      }
+                    }))} />
+                    {channel}
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'Email Templates' && (
+        <div style={{display: 'grid', gridTemplateColumns: '200px 1fr', gap: '16px'}}>
+          <aside style={{backgroundColor: colors.white, borderRadius: '16px', padding: '16px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+            {templateList.map(t => (
+              <button key={t} onClick={() => setSelectedTemplate(t)} style={{width: '100%', textAlign: 'left', padding: '10px', borderRadius: '8px', border: 'none', marginBottom: '6px', backgroundColor: selectedTemplate === t ? colors.red : colors.gray100, color: selectedTemplate === t ? colors.white : colors.black}}>
+                {t}
+              </button>
+            ))}
+          </aside>
+          <div style={{backgroundColor: colors.white, borderRadius: '16px', padding: '20px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+            <h3 style={{marginTop: 0}}>Template Editor</h3>
+            <label>Subject</label>
+            <input type="text" value={draft?.subject || ''} onChange={(e) => setDraft(prev => ({ ...prev, subject: e.target.value }))} style={styles.input} />
+            <label>Body</label>
+            <textarea value={draft?.body || ''} onChange={(e) => setDraft(prev => ({ ...prev, body: e.target.value }))} style={{...styles.input, height: '120px'}} />
+            <div style={{marginTop: '12px', display: 'flex', gap: '8px'}}>
+              <Button variant="outline" onClick={() => setShowPreview(true)}>Preview</Button>
+              <Button variant="secondary" onClick={() => setTemplates(prev => ({ ...prev, [selectedTemplate]: draft }))}>Save</Button>
+              <Button variant="outline" onClick={() => setDraft(templates[selectedTemplate])}>Revert</Button>
+            </div>
+            {showPreview && (
+              <div style={{marginTop: '16px', backgroundColor: colors.gray100, padding: '12px', borderRadius: '12px'}}>
+                <strong>{draft?.subject}</strong>
+                <p>{previewBody}</p>
+                <Button variant="outline" onClick={() => setShowPreview(false)}>Close Preview</Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'Broadcast' && (
+        <div style={{backgroundColor: colors.white, borderRadius: '16px', padding: '20px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+          <h3 style={{marginTop: 0}}>Broadcast</h3>
+          <label>Recipient Filter</label>
+          <select value={broadcast.filter} onChange={(e) => setBroadcast(prev => ({ ...prev, filter: e.target.value }))} style={{...styles.input, padding: '10px'}}>
+            <option>all users</option>
+            <option>active last 30 days</option>
+            <option>loyalty tier</option>
+            <option>custom selection</option>
+          </select>
+          <label>Subject</label>
+          <input type="text" value={broadcast.subject} onChange={(e) => setBroadcast(prev => ({ ...prev, subject: e.target.value }))} style={styles.input} />
+          <label>Body</label>
+          <textarea value={broadcast.body} onChange={(e) => setBroadcast(prev => ({ ...prev, body: e.target.value }))} style={{...styles.input, height: '120px'}} />
+          <label style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+            <input type="checkbox" checked={broadcast.schedule} onChange={() => setBroadcast(prev => ({ ...prev, schedule: !prev.schedule }))} />
+            Schedule Send
+          </label>
+          {broadcast.schedule && (
+            <input type="datetime-local" value={broadcast.sendAt} onChange={(e) => setBroadcast(prev => ({ ...prev, sendAt: e.target.value }))} style={styles.input} />
+          )}
+          <Button variant="primary">Send Broadcast</Button>
+
+          <h4 style={{marginTop: '24px'}}>Send History</h4>
+          <DataTable
+            columns={[
+              { key: 'date', label: 'Date' },
+              { key: 'subject', label: 'Subject' },
+              { key: 'recipients', label: 'Recipients' },
+              { key: 'openRate', label: 'Open Rate' }
+            ]}
+            rows={sendHistory}
+            sortKey="date"
+            sortDirection="asc"
+            onSort={() => {}}
+            selectable={false}
+            selectedIds={new Set()}
+            onToggleRow={() => {}}
+            onToggleAll={() => {}}
+            getRowId={(row) => row.id}
+          />
+        </div>
+      )}
+
+      {activeTab === 'WhatsApp Status' && (
+        <div style={{backgroundColor: colors.white, borderRadius: '16px', padding: '20px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+          <h3 style={{marginTop: 0}}>WhatsApp Status</h3>
+          <div style={{display: 'flex', gap: '12px', alignItems: 'center'}}>
+            <span style={{width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10B981'}}></span>
+            Connected
+          </div>
+          <div style={{marginTop: '12px', backgroundColor: colors.gray100, borderRadius: '12px', padding: '20px', textAlign: 'center'}}>QR Code Placeholder</div>
+          <h4 style={{marginTop: '16px'}}>Message Log</h4>
+          <ul style={{paddingLeft: '18px', color: colors.gray600}}>
+            {whatsappLog.map(item => (
+              <li key={item.id}>{item.message} • {item.time}</li>
+            ))}
+          </ul>
+          <Button variant="secondary">Send Test Message</Button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const DataTable = ({
+  columns,
+  rows,
+  sortKey,
+  sortDirection,
+  onSort,
+  selectable,
+  selectedIds,
+  onToggleRow,
+  onToggleAll,
+  rowActions,
+  getRowId
+}) => {
+  const allSelected = selectable && rows.length > 0 && rows.every(row => selectedIds.has(getRowId(row)));
+  return (
+    <div style={{overflowX: 'auto', WebkitOverflowScrolling: 'touch'}}>
+      <table style={{width: '100%', borderCollapse: 'collapse', minWidth: '760px'}}>
+        <thead style={{backgroundColor: colors.gray900, color: colors.white}}>
+          <tr>
+            {selectable && (
+              <th style={{padding: '12px', textAlign: 'left', width: '40px'}}>
+                <input type="checkbox" checked={allSelected} onChange={onToggleAll} />
+              </th>
+            )}
+            {columns.map(col => (
+              <th
+                key={col.key}
+                style={{padding: '12px', textAlign: 'left', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px', whiteSpace: 'nowrap', cursor: col.sortable ? 'pointer' : 'default'}}
+                onClick={() => col.sortable && onSort(col.key)}
+              >
+                <span style={{display: 'inline-flex', alignItems: 'center', gap: '6px'}}>
+                  {col.label}
+                  {col.sortable && sortKey === col.key && (
+                    <span>{sortDirection === 'asc' ? '▲' : '▼'}</span>
+                  )}
+                </span>
+              </th>
+            ))}
+            {rowActions && <th style={{padding: '12px', textAlign: 'left'}}>Actions</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(row => (
+            <tr key={getRowId(row)} style={{borderBottom: `1px solid ${colors.gray200}`}}>
+              {selectable && (
+                <td style={{padding: '12px'}}>
+                  <input type="checkbox" checked={selectedIds.has(getRowId(row))} onChange={() => onToggleRow(getRowId(row))} />
+                </td>
+              )}
+              {columns.map(col => (
+                <td key={col.key} style={{padding: '12px', fontSize: '14px'}}>
+                  {col.render ? col.render(row) : row[col.key]}
+                </td>
+              ))}
+              {rowActions && (
+                <td style={{padding: '12px'}}>{rowActions(row)}</td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+const AdminDashboard = ({ user, onNavigate, onLogout }) => {
+  const [activeRoute, setActiveRoute] = useState('dashboard');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [calendarView, setCalendarView] = useState('week');
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 980);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 980);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   useEffect(() => {
     if (user && user.role !== 'admin') {
       console.warn('Non-admin user attempted to access AdminDashboard; redirecting to home');
@@ -2123,104 +3542,657 @@ const AdminDashboard = ({ user, onNavigate, onLogout }) => {
     }
   }, [user, onNavigate]);
 
-  // Don't render if user is not admin
+  const adminStudios = [
+    { id: 'studio-a', name: 'Studio A', hourlyRate: 500, description: 'Premium recording suite with flagship gear.', amenities: ['SSL Console', 'Isolation Booth', 'Vocal Booth'], isActive: true, maintenance: 'Every Monday 18:00-20:00' },
+    { id: 'studio-b', name: 'Studio B', hourlyRate: 400, description: 'Podcast and voice-over optimized space.', amenities: ['Shure SM7B', 'Soundproofing', 'Video Setup'], isActive: true, maintenance: 'First Friday 14:00-16:00' },
+    { id: 'studio-c', name: 'Studio C', hourlyRate: 350, description: 'Mixing and mastering with acoustic treatment.', amenities: ['Genelec Monitors', 'Pro Tools HDX', 'Analog Outboard'], isActive: true, maintenance: 'Weekly Wednesday 09:00-11:00' },
+    { id: 'studio-d', name: 'Studio D', hourlyRate: 600, description: 'Large rehearsal space with full backline.', amenities: ['Full Backline', 'PA System', 'Drum Kit'], isActive: false, maintenance: 'Monthly 2nd Saturday 10:00-12:00' }
+  ];
+
+  const mockUsers = [
+    { id: 'u-1001', name: 'Naledi Dlamini', email: 'naledi@example.com', phone: '+27 82 555 1203', totalBookings: 6, loyaltyPoints: 320, createdAt: '2025-12-02' },
+    { id: 'u-1002', name: 'Sipho Maseko', email: 'sipho@example.com', phone: '+27 72 222 1820', totalBookings: 3, loyaltyPoints: 140, createdAt: '2025-11-18' },
+    { id: 'u-1003', name: 'Ayesha Khan', email: 'ayesha@example.com', phone: '+27 83 777 4551', totalBookings: 10, loyaltyPoints: 540, createdAt: '2025-09-22' },
+    { id: 'u-1004', name: 'Thabo Nkosi', email: 'thabo@example.com', phone: '+27 79 300 9123', totalBookings: 2, loyaltyPoints: 80, createdAt: '2026-01-10' }
+  ];
+
+  const dataModels = {
+    Booking: { id: 'string', studioId: 'string', userId: 'string', date: 'YYYY-MM-DD', startTime: 'HH:mm', endTime: 'HH:mm', duration: 'number', status: 'pending|confirmed|cancelled|completed', totalAmount: 'number', paymentStatus: 'paid|unpaid|refunded', notes: 'string', createdAt: 'ISO string' },
+    Studio: { id: 'string', name: 'string', hourlyRate: 'number', description: 'string', amenities: ['string'], isActive: 'boolean' },
+    User: { id: 'string', name: 'string', email: 'string', phone: 'string', totalBookings: 'number', loyaltyPoints: 'number', createdAt: 'YYYY-MM-DD' }
+  };
+
+  const mockBookings = [
+    { id: 'bk-1001', studioId: 'studio-a', userId: 'u-1001', date: '2026-01-29', startTime: '10:00', endTime: '12:00', duration: 120, status: 'confirmed', totalAmount: 1000, paymentStatus: 'paid', notes: 'Vocal tracking', createdAt: '2026-01-20T09:30:00Z' },
+    { id: 'bk-1002', studioId: 'studio-b', userId: 'u-1002', date: '2026-01-29', startTime: '13:00', endTime: '14:30', duration: 90, status: 'pending', totalAmount: 600, paymentStatus: 'unpaid', notes: 'Podcast recording', createdAt: '2026-01-23T13:00:00Z' },
+    { id: 'bk-1003', studioId: 'studio-c', userId: 'u-1003', date: '2026-01-30', startTime: '09:00', endTime: '11:00', duration: 120, status: 'confirmed', totalAmount: 700, paymentStatus: 'paid', notes: 'Mix review', createdAt: '2026-01-24T08:10:00Z' },
+    { id: 'bk-1004', studioId: 'studio-d', userId: 'u-1004', date: '2026-01-30', startTime: '15:00', endTime: '18:00', duration: 180, status: 'cancelled', totalAmount: 1800, paymentStatus: 'refunded', notes: 'Band rehearsal', createdAt: '2026-01-18T10:05:00Z' },
+    { id: 'bk-1005', studioId: 'studio-a', userId: 'u-1003', date: '2026-01-31', startTime: '14:00', endTime: '16:00', duration: 120, status: 'completed', totalAmount: 1000, paymentStatus: 'paid', notes: 'Acoustic session', createdAt: '2026-01-12T14:05:00Z' },
+    { id: 'bk-1006', studioId: 'studio-b', userId: 'u-1001', date: '2026-02-01', startTime: '11:00', endTime: '12:00', duration: 60, status: 'confirmed', totalAmount: 400, paymentStatus: 'paid', notes: 'Voice-over', createdAt: '2026-01-26T11:30:00Z' },
+    { id: 'bk-1007', studioId: 'studio-c', userId: 'u-1002', date: '2026-02-02', startTime: '10:00', endTime: '12:00', duration: 120, status: 'pending', totalAmount: 700, paymentStatus: 'unpaid', notes: 'Mastering', createdAt: '2026-01-27T09:15:00Z' },
+    { id: 'bk-1008', studioId: 'studio-d', userId: 'u-1001', date: '2026-02-03', startTime: '16:00', endTime: '19:00', duration: 180, status: 'confirmed', totalAmount: 1800, paymentStatus: 'paid', notes: 'Full band rehearsal', createdAt: '2026-01-25T16:10:00Z' },
+    { id: 'bk-1009', studioId: 'studio-a', userId: 'u-1002', date: '2026-02-03', startTime: '09:00', endTime: '11:00', duration: 120, status: 'completed', totalAmount: 1000, paymentStatus: 'paid', notes: 'Drum tracking', createdAt: '2026-01-11T09:30:00Z' },
+    { id: 'bk-1010', studioId: 'studio-b', userId: 'u-1004', date: '2026-02-04', startTime: '12:00', endTime: '13:30', duration: 90, status: 'confirmed', totalAmount: 600, paymentStatus: 'paid', notes: 'Live stream setup', createdAt: '2026-01-21T15:45:00Z' }
+  ];
+
+  const [bookings, setBookings] = useState(mockBookings);
+  const [studiosState, setStudiosState] = useState(adminStudios);
+  const [users, setUsers] = useState(mockUsers);
+  const [filters, setFilters] = useState({ start: '', end: '', studio: 'all', status: 'all' });
+  const [bookingSortConfig, setBookingSortConfig] = useState({ key: 'date', direction: 'asc' });
+  const [userSortConfig, setUserSortConfig] = useState({ key: 'name', direction: 'asc' });
+  const [selectedBookingIds, setSelectedBookingIds] = useState(new Set());
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [hoverBooking, setHoverBooking] = useState(null);
+  const [userSearch, setUserSearch] = useState('');
+  const [selectedUser, setSelectedUser] = useState(null);
+
+  const formatCurrency = (value) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(value);
+
+  const filteredBookings = bookings.filter(b => {
+    const inStudio = filters.studio === 'all' || b.studioId === filters.studio;
+    const inStatus = filters.status === 'all' || b.status === filters.status;
+    const inStart = !filters.start || b.date >= filters.start;
+    const inEnd = !filters.end || b.date <= filters.end;
+    return inStudio && inStatus && inStart && inEnd;
+  });
+
+  const sortedBookings = [...filteredBookings].sort((a, b) => {
+    const dir = bookingSortConfig.direction === 'asc' ? 1 : -1;
+    const aVal = a[bookingSortConfig.key];
+    const bVal = b[bookingSortConfig.key];
+    if (aVal < bVal) return -1 * dir;
+    if (aVal > bVal) return 1 * dir;
+    return 0;
+  });
+
+  const handleBookingSort = (key) => {
+    setBookingSortConfig(prev => ({ key, direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc' }));
+  };
+
+  const handleUserSort = (key) => {
+    setUserSortConfig(prev => ({ key, direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc' }));
+  };
+
+  const toggleRow = (id) => {
+    setSelectedBookingIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    setSelectedBookingIds(prev => {
+      if (prev.size === sortedBookings.length) return new Set();
+      return new Set(sortedBookings.map(b => b.id));
+    });
+  };
+
+  const updateStatus = (id, status) => {
+    setBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b));
+  };
+
+  const bulkUpdateStatus = (status) => {
+    setBookings(prev => prev.map(b => selectedBookingIds.has(b.id) ? { ...b, status } : b));
+    setSelectedBookingIds(new Set());
+  };
+
+  const exportCsv = () => {
+    const headers = ['id', 'studioId', 'userId', 'date', 'startTime', 'endTime', 'duration', 'status', 'totalAmount', 'paymentStatus', 'notes', 'createdAt'];
+    const rows = sortedBookings.map(b => headers.map(h => `"${String(b[h] ?? '')}"`).join(','));
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'finetune-bookings.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const today = new Date().toISOString().split('T')[0];
+  const todayBookings = bookings.filter(b => b.date === today).length;
+  const last7Days = [...Array(7)].map((_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    return d.toISOString().split('T')[0];
+  });
+
+  const revenueByDay = last7Days.map(date => {
+    const total = bookings.filter(b => b.date === date && (b.status === 'confirmed' || b.status === 'completed'))
+      .reduce((sum, b) => sum + b.totalAmount, 0);
+    return { date, total };
+  });
+
+  const weeklyRevenue = revenueByDay.reduce((sum, d) => sum + d.total, 0);
+  const pendingCount = bookings.filter(b => b.status === 'pending').length;
+  const totalBookableHours = 4 * 10 * 7;
+  const bookedHours = bookings
+    .filter(b => last7Days.includes(b.date) && (b.status === 'confirmed' || b.status === 'completed'))
+    .reduce((sum, b) => sum + b.duration / 60, 0);
+  const utilization = Math.min(100, Math.round((bookedHours / totalBookableHours) * 100));
+
+  const adminValue = { colors };
+
+  const navItems = [
+    { key: 'dashboard', label: 'Dashboard' },
+    { key: 'bookings', label: 'Bookings' },
+    { key: 'calendar', label: 'Calendar' },
+    { key: 'studios', label: 'Studios' },
+    { key: 'users', label: 'Users' },
+    { key: 'reports', label: 'Reports' },
+    { key: 'notifications', label: 'Notifications' },
+    { key: 'settings', label: 'Settings' }
+  ];
+
+  const studioColors = {
+    'studio-a': '#3B82F6',
+    'studio-b': '#10B981',
+    'studio-c': '#F59E0B',
+    'studio-d': '#8B5CF6'
+  };
+
+  const renderDashboard = () => (
+    <div style={{display: 'flex', flexDirection: 'column', gap: '24px'}}>
+      <div style={{display: 'grid', gap: '16px', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)'}}>
+        <StatCard icon="📅" label="Today's Bookings" value={todayBookings} />
+        <StatCard icon="💸" label="Weekly Revenue" value={formatCurrency(weeklyRevenue)} />
+        <StatCard icon="📊" label="Studio Utilization" value={`${utilization}%`} />
+        <StatCard icon="⏳" label="Pending Confirmations" value={pendingCount} />
+      </div>
+
+      <div style={{display: 'grid', gap: '16px', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr'}}>
+        <div style={{backgroundColor: colors.white, borderRadius: '16px', padding: '20px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+          <h3 style={{marginTop: 0}}>Revenue (Last 7 Days)</h3>
+          <div style={{display: 'flex', alignItems: 'flex-end', gap: '12px', height: '200px'}}>
+            {revenueByDay.map(day => (
+              <div key={day.date} style={{flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px'}}>
+                <div style={{
+                  width: '100%',
+                  height: `${Math.max(10, (day.total / Math.max(1, weeklyRevenue)) * 160)}px`,
+                  backgroundColor: colors.red,
+                  borderRadius: '10px 10px 4px 4px'
+                }} />
+                <span style={{fontSize: '11px', color: colors.gray500}}>{day.date.slice(5)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{backgroundColor: colors.white, borderRadius: '16px', padding: '20px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+          <h3 style={{marginTop: 0}}>Quick Actions</h3>
+          <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
+            <Button variant="primary" onClick={() => setActiveRoute('bookings')}>Add Booking</Button>
+            <Button variant="secondary" onClick={() => setActiveRoute('calendar')}>Block Time Slot</Button>
+            <Button variant="outline" onClick={() => setActiveRoute('bookings')}>View All Bookings</Button>
+          </div>
+        </div>
+      </div>
+
+      <div style={{backgroundColor: colors.white, borderRadius: '16px', padding: '20px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+        <h3 style={{marginTop: 0}}>Recent Bookings</h3>
+        <DataTable
+          columns={[
+            { key: 'id', label: 'Booking ID', sortable: true },
+            { key: 'user', label: 'Client', render: (row) => users.find(u => u.id === row.userId)?.name || row.userId },
+            { key: 'studio', label: 'Studio', render: (row) => studiosState.find(s => s.id === row.studioId)?.name || row.studioId },
+            { key: 'date', label: 'Date', sortable: true },
+            { key: 'startTime', label: 'Time' },
+            { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> }
+          ]}
+          rows={[...bookings].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 10)}
+          sortKey={bookingSortConfig.key}
+          sortDirection={bookingSortConfig.direction}
+          onSort={handleBookingSort}
+          selectable={false}
+          selectedIds={new Set()}
+          onToggleRow={() => {}}
+          onToggleAll={() => {}}
+          getRowId={(row) => row.id}
+        />
+      </div>
+    </div>
+  );
+
+  const renderBookings = () => (
+    <div style={{display: 'flex', flexDirection: 'column', gap: '16px'}}>
+      <div style={{backgroundColor: colors.white, borderRadius: '16px', padding: '16px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+        <div style={{display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'flex-end'}}>
+          <div style={{display: 'flex', flexDirection: 'column', gap: '6px'}}>
+            <label style={{fontSize: '12px', fontWeight: '600'}}>Date From</label>
+            <input type="date" value={filters.start} onChange={(e) => setFilters(prev => ({ ...prev, start: e.target.value }))} style={styles.input} />
+          </div>
+          <div style={{display: 'flex', flexDirection: 'column', gap: '6px'}}>
+            <label style={{fontSize: '12px', fontWeight: '600'}}>Date To</label>
+            <input type="date" value={filters.end} onChange={(e) => setFilters(prev => ({ ...prev, end: e.target.value }))} style={styles.input} />
+          </div>
+          <div style={{display: 'flex', flexDirection: 'column', gap: '6px'}}>
+            <label style={{fontSize: '12px', fontWeight: '600'}}>Studio</label>
+            <select value={filters.studio} onChange={(e) => setFilters(prev => ({ ...prev, studio: e.target.value }))} style={{...styles.input, padding: '12px'}}>
+              <option value="all">All Studios</option>
+              {studiosState.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+          <div style={{display: 'flex', flexDirection: 'column', gap: '6px'}}>
+            <label style={{fontSize: '12px', fontWeight: '600'}}>Status</label>
+            <select value={filters.status} onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))} style={{...styles.input, padding: '12px'}}>
+              <option value="all">All</option>
+              <option value="pending">Pending</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+          <div style={{display: 'flex', gap: '10px', marginLeft: 'auto', flexWrap: 'wrap'}}>
+            <Button variant="outline" onClick={exportCsv}>Export CSV</Button>
+            <Button variant="secondary" onClick={() => bulkUpdateStatus('confirmed')} disabled={selectedBookingIds.size === 0}>Bulk Confirm</Button>
+            <Button variant="outline" onClick={() => bulkUpdateStatus('cancelled')} disabled={selectedBookingIds.size === 0}>Bulk Cancel</Button>
+          </div>
+        </div>
+      </div>
+
+      <div style={{backgroundColor: colors.white, borderRadius: '16px', padding: '16px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+        <DataTable
+          columns={[
+            { key: 'id', label: 'Booking ID', sortable: true },
+            { key: 'client', label: 'Client', render: (row) => users.find(u => u.id === row.userId)?.name || row.userId },
+            { key: 'studioId', label: 'Studio', sortable: true, render: (row) => studiosState.find(s => s.id === row.studioId)?.name || row.studioId },
+            { key: 'date', label: 'Date', sortable: true },
+            { key: 'time', label: 'Time', render: (row) => `${row.startTime} - ${row.endTime}` },
+            { key: 'duration', label: 'Duration', render: (row) => `${row.duration} min` },
+            { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
+            { key: 'totalAmount', label: 'Amount', render: (row) => formatCurrency(row.totalAmount) }
+          ]}
+          rows={sortedBookings}
+          sortKey={bookingSortConfig.key}
+          sortDirection={bookingSortConfig.direction}
+          onSort={handleBookingSort}
+          selectable={true}
+          selectedIds={selectedBookingIds}
+          onToggleRow={toggleRow}
+          onToggleAll={toggleAll}
+          getRowId={(row) => row.id}
+          rowActions={(row) => (
+            <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
+              <Button variant="secondary" style={{padding: '8px 12px', fontSize: '12px'}} onClick={() => updateStatus(row.id, 'confirmed')}>Confirm</Button>
+              <Button variant="outline" style={{padding: '8px 12px', fontSize: '12px'}} onClick={() => updateStatus(row.id, 'cancelled')}>Cancel</Button>
+              <Button variant="outline" style={{padding: '8px 12px', fontSize: '12px'}} onClick={() => setSelectedBooking(row)}>View</Button>
+            </div>
+          )}
+        />
+      </div>
+    </div>
+  );
+
+  const renderCalendar = () => {
+    const timeSlots = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'];
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    const weekDays = [...Array(7)].map((_, i) => {
+      const d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      return d;
+    });
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    const daysInMonth = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0).getDate();
+    const monthDays = [...Array(daysInMonth)].map((_, i) => {
+      const d = new Date(monthStart);
+      d.setDate(i + 1);
+      return d;
+    });
+
+    return (
+      <div style={{display: 'flex', flexDirection: 'column', gap: '16px'}}>
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px'}}>
+          <div style={{display: 'flex', gap: '8px'}}>
+            <Button variant={calendarView === 'week' ? 'primary' : 'outline'} onClick={() => setCalendarView('week')}>Week View</Button>
+            <Button variant={calendarView === 'month' ? 'primary' : 'outline'} onClick={() => setCalendarView('month')}>Month View</Button>
+          </div>
+          {hoverBooking && (
+            <div style={{fontSize: '12px', color: colors.gray600}}>
+              Hover: {hoverBooking.id} • {hoverBooking.startTime}-{hoverBooking.endTime} • {hoverBooking.date}
+            </div>
+          )}
+        </div>
+
+        {calendarView === 'week' && (
+          <div style={{backgroundColor: colors.white, borderRadius: '16px', padding: '16px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+            <div style={{display: 'grid', gridTemplateColumns: `120px repeat(7, 1fr)`, gap: '8px'}}>
+              <div></div>
+              {weekDays.map(day => (
+                <div key={day.toISOString()} style={{textAlign: 'center', fontWeight: '600', fontSize: '12px'}}>
+                  {day.toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric' })}
+                </div>
+              ))}
+              {timeSlots.map(slot => (
+                <React.Fragment key={slot}>
+                  <div style={{fontSize: '12px', color: colors.gray500}}>{slot}</div>
+                  {weekDays.map(day => {
+                    const dateStr = day.toISOString().split('T')[0];
+                    const booking = bookings.find(b => b.date === dateStr && b.startTime === slot);
+                    return (
+                      <div
+                        key={`${dateStr}-${slot}`}
+                        onClick={() => booking ? setSelectedBooking(booking) : setSelectedBooking({ id: 'new', date: dateStr, startTime: slot, endTime: slot, status: 'pending', notes: 'New booking / maintenance block' })}
+                        onMouseEnter={() => booking && setHoverBooking(booking)}
+                        onMouseLeave={() => setHoverBooking(null)}
+                        style={{
+                          border: `1px solid ${colors.gray200}`,
+                          minHeight: '40px',
+                          borderRadius: '8px',
+                          backgroundColor: booking ? studioColors[booking.studioId] : 'transparent',
+                          color: booking ? colors.white : colors.gray500,
+                          fontSize: '11px',
+                          padding: '6px',
+                          cursor: 'pointer'
+                        }}
+                        title={booking ? `${booking.id} ${booking.startTime}-${booking.endTime}` : 'Create booking'}
+                      >
+                        {booking ? booking.id : '+'}
+                      </div>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {calendarView === 'month' && (
+          <div style={{backgroundColor: colors.white, borderRadius: '16px', padding: '16px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px'}}>
+              {monthDays.map(day => {
+                const dateStr = day.toISOString().split('T')[0];
+                const dayBookings = bookings.filter(b => b.date === dateStr);
+                return (
+                  <div key={dateStr} style={{border: `1px solid ${colors.gray200}`, borderRadius: '10px', minHeight: '100px', padding: '8px'}}>
+                    <div style={{fontSize: '12px', fontWeight: '600'}}>{day.getDate()}</div>
+                    <div style={{display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px'}}>
+                      {dayBookings.slice(0, 3).map(b => (
+                        <div
+                          key={b.id}
+                          onMouseEnter={() => setHoverBooking(b)}
+                          onMouseLeave={() => setHoverBooking(null)}
+                          onClick={() => setSelectedBooking(b)}
+                          style={{
+                            backgroundColor: studioColors[b.studioId],
+                            color: colors.white,
+                            padding: '4px 6px',
+                            borderRadius: '6px',
+                            fontSize: '10px',
+                            cursor: 'pointer'
+                          }}
+                          title={`${b.id} ${b.startTime}-${b.endTime}`}
+                        >
+                          {b.startTime} {b.id}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderStudios = () => (
+    <div style={{display: 'grid', gap: '16px', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)'}}>
+      {studiosState.map(studio => (
+        <div key={studio.id} style={{backgroundColor: colors.white, borderRadius: '16px', padding: '20px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px'}}>
+            <div>
+              <h3 style={{marginTop: 0}}>{studio.name}</h3>
+              <p style={{color: colors.gray600}}>{studio.description}</p>
+              <div style={{fontWeight: '700'}}>{formatCurrency(studio.hourlyRate)} / hour</div>
+            </div>
+            <label style={{display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px'}}>
+              <input
+                type="checkbox"
+                checked={studio.isActive}
+                onChange={() => setStudiosState(prev => prev.map(s => s.id === studio.id ? { ...s, isActive: !s.isActive } : s))}
+              />
+              Active
+            </label>
+          </div>
+
+          <div style={{marginTop: '12px'}}>
+            <strong style={{fontSize: '12px'}}>Amenities</strong>
+            <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px'}}>
+              {['SSL Console', 'Isolation Booth', 'Vocal Booth', 'Video Setup', 'PA System'].map(item => (
+                <label key={item} style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', backgroundColor: colors.gray100, padding: '6px 8px', borderRadius: '12px'}}>
+                  <input
+                    type="checkbox"
+                    checked={studio.amenities.includes(item)}
+                    onChange={() => setStudiosState(prev => prev.map(s => s.id === studio.id ? {
+                      ...s,
+                      amenities: s.amenities.includes(item) ? s.amenities.filter(a => a !== item) : [...s.amenities, item]
+                    } : s))}
+                  />
+                  {item}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div style={{marginTop: '12px'}}>
+            <label style={{fontSize: '12px', fontWeight: '600'}}>Recurring Maintenance</label>
+            <input
+              value={studio.maintenance}
+              onChange={(e) => setStudiosState(prev => prev.map(s => s.id === studio.id ? { ...s, maintenance: e.target.value } : s))}
+              style={{...styles.input, marginTop: '6px'}}
+              placeholder="Every Monday 18:00-20:00"
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderUsers = () => {
+    const filteredUsers = users.filter(u =>
+      u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
+      u.email.toLowerCase().includes(userSearch.toLowerCase())
+    );
+
+    const sortedUsers = [...filteredUsers].sort((a, b) => {
+      const dir = userSortConfig.direction === 'asc' ? 1 : -1;
+      const aVal = a[userSortConfig.key];
+      const bVal = b[userSortConfig.key];
+      if (aVal < bVal) return -1 * dir;
+      if (aVal > bVal) return 1 * dir;
+      return 0;
+    });
+
+    return (
+      <div style={{display: 'grid', gap: '16px', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr'}}>
+        <div style={{backgroundColor: colors.white, borderRadius: '16px', padding: '16px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '12px'}}>
+            <h3 style={{margin: 0}}>Users</h3>
+            <input
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+              placeholder="Search users"
+              style={{...styles.input, maxWidth: '240px'}}
+            />
+          </div>
+          <DataTable
+            columns={[
+              { key: 'name', label: 'Name', sortable: true },
+              { key: 'email', label: 'Email' },
+              { key: 'phone', label: 'Phone' },
+              { key: 'totalBookings', label: 'Total Bookings', sortable: true },
+              { key: 'loyaltyPoints', label: 'Loyalty Points', sortable: true }
+            ]}
+            rows={sortedUsers}
+            sortKey={userSortConfig.key}
+            sortDirection={userSortConfig.direction}
+            onSort={handleUserSort}
+            selectable={false}
+            selectedIds={new Set()}
+            onToggleRow={() => {}}
+            onToggleAll={() => {}}
+            getRowId={(row) => row.id}
+            rowActions={(row) => (
+              <Button variant="outline" style={{padding: '8px 12px', fontSize: '12px'}} onClick={() => setSelectedUser(row)}>
+                View
+              </Button>
+            )}
+          />
+        </div>
+
+        <div style={{backgroundColor: colors.white, borderRadius: '16px', padding: '16px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+          <h3 style={{marginTop: 0}}>User Details</h3>
+          {selectedUser ? (
+            <div>
+              <div style={{fontWeight: '700', fontSize: '16px'}}>{selectedUser.name}</div>
+              <div style={{color: colors.gray600, fontSize: '13px'}}>{selectedUser.email}</div>
+              <div style={{color: colors.gray600, fontSize: '13px'}}>{selectedUser.phone}</div>
+              <div style={{marginTop: '12px', fontSize: '13px'}}>Total Bookings: {selectedUser.totalBookings}</div>
+              <div style={{marginBottom: '12px', fontSize: '13px'}}>Loyalty Points: {selectedUser.loyaltyPoints}</div>
+              <Button variant="secondary" onClick={() => setSelectedBooking({ id: 'new', userId: selectedUser.id, status: 'pending', notes: 'Manual booking' })}>
+                Add Manual Booking
+              </Button>
+              <div style={{marginTop: '16px', fontWeight: '600'}}>Booking History</div>
+              <ul style={{paddingLeft: '18px', color: colors.gray600}}>
+                {bookings.filter(b => b.userId === selectedUser.id).map(b => (
+                  <li key={b.id}>{b.date} • {b.startTime}-{b.endTime} • {b.studioId}</li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p style={{color: colors.gray500}}>Select a user to view history.</p>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderReports = () => (
+    <div style={{backgroundColor: colors.white, borderRadius: '16px', padding: '24px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+      <h3 style={{marginTop: 0}}>Reports</h3>
+      <p style={{color: colors.gray600}}>Generate revenue, utilization, and customer reports. (Mock view)</p>
+    </div>
+  );
+
+  const renderSettings = () => (
+    <div style={{backgroundColor: colors.white, borderRadius: '16px', padding: '24px', boxShadow: '0 6px 20px rgba(0,0,0,0.08)'}}>
+      <h3 style={{marginTop: 0}}>Settings</h3>
+      <p style={{color: colors.gray600}}>Configure admin preferences, notifications, and access control. (Mock view)</p>
+      <div style={{marginTop: '16px'}}>
+        <div style={{fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px'}}>Data Models</div>
+        <pre style={{backgroundColor: colors.gray100, padding: '12px', borderRadius: '10px', fontSize: '12px', overflowX: 'auto'}}>
+{JSON.stringify(dataModels, null, 2)}
+        </pre>
+      </div>
+    </div>
+  );
+
   if (!user || user.role !== 'admin') {
     return null;
   }
 
-  const loadBookings = async () => {
-    const result = await getAllBookings();
-    if (result.success) {
-      setBookings(result.data);
-    }
-    setLoading(false);
-  };
-
-  const totalRevenue = bookings.reduce((sum, b) => sum + (b.total_price || 0), 0);
-
-  const stats = [
-    { label: 'Total Bookings', value: bookings.length, icon: '📅' },
-    { label: 'Active Studios', value: 4, icon: '🎵' },
-    { label: 'Services', value: 6, icon: '🎤' },
-    { label: 'Revenue', value: `R${totalRevenue.toLocaleString()}`, icon: '💰' }
-  ];
-
   return (
-    <div style={{...styles.page, backgroundColor: colors.gray100}}>
-      <header style={styles.dashboardHeader}>
-        <div style={styles.dashboardHeaderContent}>
-          <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-            <img src="/finetune-logo.svg" alt="Finetune Studios" style={{width: '60px', height: 'auto'}} />
-            <span style={{fontSize: '20px', fontWeight: 'bold', letterSpacing: '2px'}}>FINETUNE STUDIOS - ADMIN</span>
-          </div>
-          <div style={{display: 'flex', alignItems: 'center', gap: '24px'}}>
-            <span style={{fontSize: '14px'}}>Welcome, <strong style={{color: colors.red}}>{user?.name}</strong></span>
-            <button style={styles.navLink} onClick={() => onNavigate('home')}>Public Site</button>
-            <button style={styles.btnPrimary} onClick={onLogout}>Logout</button>
-          </div>
-        </div>
-      </header>
-
-      <div style={{maxWidth: '1200px', margin: '0 auto', padding: '40px 24px'}}>
-        <h1 style={{fontSize: '32px', fontWeight: 'bold', marginBottom: '32px', letterSpacing: '2px'}}>ADMIN DASHBOARD</h1>
-
-        <div style={styles.statsGrid}>
-          {stats.map((stat, index) => (
-            <div key={index} style={styles.statCard}>
-              <div style={styles.statIcon}>{stat.icon}</div>
-              <div style={styles.statLabel}>{stat.label}</div>
-              <div style={styles.statValue}>{loading ? '...' : stat.value}</div>
+    <AdminContext.Provider value={adminValue}>
+      <div style={{minHeight: '100vh', backgroundColor: colors.gray100, display: 'flex', flexDirection: isMobile ? 'column' : 'row'}}>
+        <aside style={{
+          width: sidebarCollapsed && !isMobile ? '80px' : isMobile ? '100%' : '260px',
+          backgroundColor: colors.black,
+          color: colors.white,
+          padding: '20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px'
+        }}>
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+            <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+              <div style={{width: '36px', height: '36px', borderRadius: '8px', backgroundColor: colors.red, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>🎛️</div>
+              {!sidebarCollapsed && <span style={{fontWeight: '700', letterSpacing: '1px'}}>FINETUNE ADMIN</span>}
             </div>
-          ))}
-        </div>
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              style={{background: 'none', border: 'none', color: colors.white, cursor: 'pointer', fontSize: '16px'}}
+            >
+              {sidebarCollapsed ? '➡️' : '⬅️'}
+            </button>
+          </div>
+          <nav style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+            {navItems.map(item => (
+              <button
+                key={item.key}
+                onClick={() => setActiveRoute(item.key)}
+                style={{
+                  backgroundColor: activeRoute === item.key ? colors.red : 'transparent',
+                  color: colors.white,
+                  border: 'none',
+                  padding: '12px',
+                  borderRadius: '10px',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  letterSpacing: '0.5px'
+                }}
+              >
+                {sidebarCollapsed ? item.label[0] : item.label}
+              </button>
+            ))}
+          </nav>
+          <div style={{marginTop: 'auto'}}>
+            <Button variant="outline" style={{width: '100%'}} onClick={() => onNavigate('home')}>Public Site</Button>
+          </div>
+        </aside>
 
-        <div style={styles.tableContainer}>
-          <div style={styles.tableTitle}>ALL BOOKINGS ({bookings.length})</div>
-          {loading ? (
-            <div style={{padding: '48px', textAlign: 'center', color: colors.gray500}}>Loading bookings...</div>
-          ) : (
-            <div style={{overflowX: 'auto', WebkitOverflowScrolling: 'touch'}}>
-              <table style={styles.table}>
-                <thead style={styles.tableHeader}>
-                  <tr>
-                    <th style={styles.th}>Booking #</th>
-                    <th style={styles.th}>Client</th>
-                    <th style={styles.th}>Studio</th>
-                    <th style={styles.th}>Service</th>
-                    <th style={styles.th}>Date</th>
-                    <th style={styles.th}>Time</th>
-                    <th style={styles.th}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bookings.map((b, i) => (
-                    <tr key={b.id || i}>
-                      <td style={styles.td}><strong style={{fontFamily: 'monospace'}}>{b.booking_number}</strong></td>
-                      <td style={styles.td}>
-                        <div style={{fontWeight: '600'}}>{b.client_name}</div>
-                        <div style={{fontSize: 'clamp(11px, 2.5vw, 12px)', color: colors.gray500}}>{b.client_email}</div>
-                      </td>
-                      <td style={styles.td}>{studios.find(s => s.id === b.studio_id)?.name || b.studio_id}</td>
-                      <td style={styles.td}>{services.find(s => s.id === b.service_id)?.name || b.service_id}</td>
-                      <td style={styles.td}>{b.date}</td>
-                      <td style={{...styles.td, fontWeight: '600'}}>{b.time}</td>
-                      <td style={styles.td}>
-                        <span style={{
-                          ...styles.statusBadge,
-                          ...(b.status === 'confirmed' ? styles.statusConfirmed : styles.statusPending)
-                        }}>
-                          {b.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        <main style={{flex: 1, padding: isMobile ? '16px' : '28px'}}>
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '20px'}}>
+            <div>
+              <h1 style={{margin: 0, fontSize: '24px'}}>Admin Dashboard</h1>
+              <p style={{margin: '4px 0 0', color: colors.gray600}}>Manage bookings, studios, and users</p>
+            </div>
+            <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+              <div style={{backgroundColor: colors.white, borderRadius: '12px', padding: '10px 12px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)'}}>🔔 3</div>
+              <div style={{fontWeight: '600'}}>Hi, {user?.name}</div>
+              <Button variant="secondary" onClick={onLogout}>Logout</Button>
+            </div>
+          </div>
+
+          {activeRoute === 'dashboard' && <DashboardOverview />}
+          {activeRoute === 'bookings' && renderBookings()}
+          {activeRoute === 'calendar' && <StudioBookingCalendar />}
+          {activeRoute === 'studios' && renderStudios()}
+          {activeRoute === 'users' && renderUsers()}
+          {activeRoute === 'reports' && <FinancialReports />}
+          {activeRoute === 'notifications' && <NotificationsManagement />}
+          {activeRoute === 'settings' && <AdminSettings />}
+        </main>
+
+        <Modal
+          open={!!selectedBooking}
+          title={selectedBooking?.id === 'new' ? 'Create Booking / Maintenance' : `Booking ${selectedBooking?.id}`}
+          onClose={() => setSelectedBooking(null)}
+          actions={(
+            <>
+              <Button variant="outline" onClick={() => setSelectedBooking(null)}>Close</Button>
+              <Button variant="primary" onClick={() => setSelectedBooking(null)}>Save</Button>
+            </>
+          )}
+        >
+          {selectedBooking && (
+            <div style={{display: 'grid', gap: '12px'}}>
+              <div><strong>Studio:</strong> {studiosState.find(s => s.id === selectedBooking.studioId)?.name || selectedBooking.studioId || 'New'}</div>
+              <div><strong>Date:</strong> {selectedBooking.date || 'TBD'}</div>
+              <div><strong>Time:</strong> {selectedBooking.startTime || 'TBD'} - {selectedBooking.endTime || 'TBD'}</div>
+              <div><strong>Status:</strong> {selectedBooking.status || 'pending'}</div>
+              <div><strong>Notes:</strong> {selectedBooking.notes || 'None'}</div>
             </div>
           )}
-        </div>
+        </Modal>
       </div>
-    </div>
+    </AdminContext.Provider>
   );
 };
 
